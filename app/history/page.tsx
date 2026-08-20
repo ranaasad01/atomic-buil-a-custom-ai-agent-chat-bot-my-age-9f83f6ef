@@ -253,7 +253,7 @@ function RealThreadCard({ thread, messageCount, onDelete }: RealThreadCardProps)
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-[var(--foreground)] text-sm leading-snug truncate">
-            {thread.title || "Untitled Thread"}
+            {thread.title ?? "Untitled Thread"}
           </h3>
           <div className="flex items-center gap-1.5 mt-1">
             <Globe className="w-3 h-3 text-[var(--muted-foreground)] shrink-0" />
@@ -466,18 +466,14 @@ function MockSessionCard({ session, isExpanded, onToggle }: MockSessionCardProps
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
                       {session.pass_count} passed
                     </span>
-                    {session.fail_count > 0 && (
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--destructive)] inline-block" />
-                        {session.fail_count} failed
-                      </span>
-                    )}
-                    {session.skip_count > 0 && (
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-                        {session.skip_count} skipped
-                      </span>
-                    )}
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--destructive)] inline-block" />
+                      {session.fail_count} failed
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                      {session.skip_count} skipped
+                    </span>
                     <span className="ml-auto flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {formatDuration(session.duration_ms)}
@@ -486,33 +482,15 @@ function MockSessionCard({ session, isExpanded, onToggle }: MockSessionCardProps
                 </div>
               )}
 
-              {/* Output types */}
-              {session.output_types.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {session.output_types.map((type) => (
-                    <span
-                      key={type}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-white/5 text-[var(--muted-foreground)] border border-white/10"
-                    >
-                      {type === "script" && <FileCode className="w-2.5 h-2.5" />}
-                      {type === "excel" && <FileText className="w-2.5 h-2.5" />}
-                      {type === "bug-report" && <AlertCircle className="w-2.5 h-2.5" />}
-                      {type === "log" && <Activity className="w-2.5 h-2.5" />}
-                      {type}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Summary notes */}
-              {session.summary && "notes" in session.summary && session.summary.notes && (
-                <p className="text-xs text-[var(--muted-foreground)] italic mb-4">
-                  {session.summary.notes as string}
+              {/* Summary note */}
+              {session.summary && typeof session.summary === "object" && "notes" in session.summary && (
+                <p className="text-xs text-[var(--muted-foreground)] italic mb-3">
+                  {String(session.summary.notes)}
                 </p>
               )}
-              {session.summary && "error" in session.summary && session.summary.error && (
-                <p className="text-xs text-[var(--destructive)] mb-4">
-                  Error: {session.summary.error as string}
+              {session.summary && typeof session.summary === "object" && "error" in session.summary && (
+                <p className="text-xs text-[var(--destructive)] mb-3">
+                  ⚠ {String(session.summary.error)}
                 </p>
               )}
 
@@ -540,6 +518,9 @@ function MockSessionCard({ session, isExpanded, onToggle }: MockSessionCardProps
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+type ActiveTab = "threads" | "sessions";
+type SortOrder = "newest" | "oldest";
+
 const STATUS_FILTERS: { value: SessionStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "completed", label: "Completed" },
@@ -551,63 +532,82 @@ const STATUS_FILTERS: { value: SessionStatus | "all"; label: string }[] = [
 export default function HistoryPage() {
   const t = useTranslations();
 
-  // Real threads from localStorage
+  // ── Tab state ──
+  const [activeTab, setActiveTab] = useState<ActiveTab>("threads");
+
+  // ── Real threads state ──
   const [threads, setThreads] = useState<Thread[]>([]);
   const [threadMessageCounts, setThreadMessageCounts] = useState<Record<string, number>>({});
-  const [threadsLoaded, setThreadsLoaded] = useState(false);
+  const [threadSearch, setThreadSearch] = useState("");
+  const [threadSort, setThreadSort] = useState<SortOrder>("newest");
 
-  // Mock session state
+  // ── Mock sessions state ──
+  const [sessionSearch, setSessionSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<SessionStatus | "all">("all");
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
-  // Filters
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<SessionStatus | "all">("all");
-  const [activeTab, setActiveTab] = useState<"threads" | "sessions">("threads");
-
+  // Load threads on mount
   useEffect(() => {
-    const loadedThreads = getThreads();
-    setThreads(loadedThreads);
-
+    const loaded = getThreads();
+    setThreads(loaded);
     const counts: Record<string, number> = {};
-    for (const thread of loadedThreads) {
-      counts[thread.id] = getMessages(thread.id).length;
+    for (const t of loaded) {
+      counts[t.id] = getMessages(t.id).length;
     }
     setThreadMessageCounts(counts);
-    setThreadsLoaded(true);
   }, []);
 
   const handleDeleteThread = useCallback((id: string) => {
     setThreads((prev) => prev.filter((t) => t.id !== id));
+    setThreadMessageCounts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }, []);
 
+  // Filtered + sorted threads
+  const filteredThreads = useMemo(() => {
+    let result = threads;
+    if (threadSearch.trim()) {
+      const q = threadSearch.toLowerCase();
+      result = result.filter(
+        (t) =>
+          (t.title ?? "").toLowerCase().includes(q) ||
+          (t.targetUrl ?? "").toLowerCase().includes(q)
+      );
+    }
+    return [...result].sort((a, b) => {
+      const aTime = new Date(a.updatedAt).getTime();
+      const bTime = new Date(b.updatedAt).getTime();
+      return threadSort === "newest" ? bTime - aTime : aTime - bTime;
+    });
+  }, [threads, threadSearch, threadSort]);
+
+  // Filtered mock sessions
   const filteredSessions = useMemo(() => {
     return MOCK_SESSIONS.filter((s) => {
       const matchesSearch =
-        search.trim() === "" ||
-        s.title.toLowerCase().includes(search.toLowerCase()) ||
-        s.target_url.toLowerCase().includes(search.toLowerCase());
+        sessionSearch.trim() === "" ||
+        s.title.toLowerCase().includes(sessionSearch.toLowerCase()) ||
+        s.target_url.toLowerCase().includes(sessionSearch.toLowerCase());
       const matchesStatus = statusFilter === "all" || s.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [search, statusFilter]);
-
-  const filteredThreads = useMemo(() => {
-    return threads.filter((t) => {
-      if (search.trim() === "") return true;
-      const titleMatch = (t.title ?? "").toLowerCase().includes(search.toLowerCase());
-      const urlMatch = (t.targetUrl ?? "").toLowerCase().includes(search.toLowerCase());
-      return titleMatch || urlMatch;
-    });
-  }, [threads, search]);
+  }, [sessionSearch, statusFilter]);
 
   // Stats
-  const stats = useMemo(() => {
-    const totalSessions = MOCK_SESSIONS.length;
-    const completedSessions = MOCK_SESSIONS.filter((s) => s.status === "completed").length;
-    const totalThreads = threads.length;
-    const totalMessages = Object.values(threadMessageCounts).reduce((a, b) => a + b, 0);
-    return { totalSessions, completedSessions, totalThreads, totalMessages };
-  }, [threads, threadMessageCounts]);
+  const threadStats = useMemo(() => ({
+    total: threads.length,
+    totalMessages: Object.values(threadMessageCounts).reduce((a, b) => a + b, 0),
+  }), [threads, threadMessageCounts]);
+
+  const sessionStats = useMemo(() => ({
+    total: MOCK_SESSIONS.length,
+    completed: MOCK_SESSIONS.filter((s) => s.status === "completed").length,
+    totalTests: MOCK_SESSIONS.reduce((a, s) => a + s.total_tests, 0),
+    totalPassed: MOCK_SESSIONS.reduce((a, s) => a + s.pass_count, 0),
+  }), []);
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -621,17 +621,17 @@ export default function HistoryPage() {
                   History
                 </p>
                 <h1 className="text-3xl font-bold text-[var(--foreground)] tracking-tight">
-                  Chat Threads & Sessions
+                  Chat &amp; Session History
                 </h1>
                 <p className="mt-2 text-sm text-[var(--muted-foreground)] max-w-lg">
-                  Browse your chat history and past QA sessions. Resume any conversation or review test artifacts.
+                  Browse your chat threads and past QA sessions. Revisit conversations, download artifacts, and track test results.
                 </p>
               </div>
               <Link
                 href="/home-chat-interface"
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary)]/90 transition-colors shrink-0"
               >
-                <MessageSquare className="w-4 h-4" aria-hidden="true" />
+                <MessageSquare className="w-4 h-4" />
                 New Chat
               </Link>
             </div>
@@ -641,20 +641,22 @@ export default function HistoryPage() {
           <Reveal delay={0.1}>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
               {[
-                { label: "Chat Threads", value: stats.totalThreads, icon: MessageSquare },
-                { label: "Total Messages", value: stats.totalMessages, icon: Activity },
-                { label: "QA Sessions", value: stats.totalSessions, icon: Star },
-                { label: "Completed", value: stats.completedSessions, icon: CheckCircle },
+                { label: "Chat Threads", value: threadStats.total, icon: MessageSquare },
+                { label: "Total Messages", value: threadStats.totalMessages, icon: Activity },
+                { label: "QA Sessions", value: sessionStats.total, icon: Star },
+                { label: "Tests Run", value: sessionStats.totalTests, icon: CheckCircle },
               ].map(({ label, value, icon: Icon }) => (
                 <div
                   key={label}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 flex flex-col gap-1"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 flex items-center gap-3"
                 >
-                  <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
-                    <Icon className="w-3.5 h-3.5" />
-                    <span className="text-xs">{label}</span>
+                  <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center shrink-0">
+                    <Icon className="w-4 h-4 text-[var(--primary)]" />
                   </div>
-                  <span className="text-2xl font-bold text-[var(--foreground)]">{value}</span>
+                  <div>
+                    <p className="text-xl font-bold text-[var(--foreground)]">{value}</p>
+                    <p className="text-xs text-[var(--muted-foreground)]">{label}</p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -664,101 +666,70 @@ export default function HistoryPage() {
 
       {/* ── Main content ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Search + filters */}
-        <Reveal>
-          <div className="flex flex-col sm:flex-row gap-3 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
-              <input
-                type="text"
-                placeholder="Search threads or sessions..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]/50 transition-all"
-              />
-            </div>
+        {/* Tab switcher */}
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--card)] border border-[var(--border)] w-fit mb-8">
+          {([
+            { value: "threads" as ActiveTab, label: "Chat Threads" },
+            { value: "sessions" as ActiveTab, label: "QA Sessions" },
+          ]).map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={cn(
+                "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
+                activeTab === tab.value
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-            {/* Tab switcher */}
-            <div className="flex items-center gap-1 p-1 rounded-xl border border-[var(--border)] bg-[var(--card)]">
-              <button
-                onClick={() => setActiveTab("threads")}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-                  activeTab === "threads"
-                    ? "bg-[var(--primary)] text-white"
-                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                )}
-              >
-                Chat Threads
-              </button>
-              <button
-                onClick={() => setActiveTab("sessions")}
-                className={cn(
-                  "px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-                  activeTab === "sessions"
-                    ? "bg-[var(--primary)] text-white"
-                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                )}
-              >
-                QA Sessions
-              </button>
-            </div>
-          </div>
-        </Reveal>
-
-        {/* Status filter (sessions only) */}
-        {activeTab === "sessions" && (
-          <Reveal>
-            <div className="flex flex-wrap gap-2 mb-6">
-              {STATUS_FILTERS.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setStatusFilter(f.value)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
-                    statusFilter === f.value
-                      ? "bg-[var(--primary)] text-white border-[var(--primary)]"
-                      : "bg-[var(--card)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </Reveal>
-        )}
-
-        {/* ── Chat Threads Tab ── */}
+        {/* ── Threads tab ── */}
         {activeTab === "threads" && (
           <div>
-            {!threadsLoaded ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="w-6 h-6 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+            {/* Toolbar */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
+                <input
+                  type="text"
+                  placeholder="Search threads…"
+                  value={threadSearch}
+                  onChange={(e) => setThreadSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                />
               </div>
-            ) : filteredThreads.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <MessageSquare className="w-12 h-12 text-[var(--muted-foreground)] mb-4 opacity-40" />
-                <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">
-                  {threads.length === 0 ? "No chat threads yet" : "No threads match your search"}
-                </h3>
-                <p className="text-sm text-[var(--muted-foreground)] max-w-sm mb-6">
+              <select
+                value={threadSort}
+                onChange={(e) => setThreadSort(e.target.value as SortOrder)}
+                className="px-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+              </select>
+            </div>
+
+            {filteredThreads.length === 0 ? (
+              <div className="text-center py-20">
+                <MessageSquare className="w-12 h-12 text-[var(--muted-foreground)] mx-auto mb-4 opacity-30" />
+                <p className="text-[var(--muted-foreground)] text-sm">
                   {threads.length === 0
-                    ? "Start a new chat to begin testing websites with the QA Agent."
-                    : "Try a different search term."}
+                    ? "No chat threads yet. Start a new chat to get going!"
+                    : "No threads match your search."}
                 </p>
-                {threads.length === 0 && (
-                  <Link
-                    href="/home-chat-interface"
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary)]/90 transition-colors"
-                  >
-                    <MessageSquare className="w-4 h-4" />
-                    Start New Chat
-                  </Link>
-                )}
+                <Link
+                  href="/home-chat-interface"
+                  className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary)]/90 transition-colors"
+                >
+                  Start New Chat
+                </Link>
               </div>
             ) : (
               <AnimatePresence mode="popLayout">
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {filteredThreads.map((thread) => (
                     <RealThreadCard
                       key={thread.id}
@@ -773,30 +744,55 @@ export default function HistoryPage() {
           </div>
         )}
 
-        {/* ── QA Sessions Tab ── */}
+        {/* ── Sessions tab ── */}
         {activeTab === "sessions" && (
           <div>
+            {/* Toolbar */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
+                <input
+                  type="text"
+                  placeholder="Search sessions…"
+                  value={sessionSearch}
+                  onChange={(e) => setSessionSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {STATUS_FILTERS.map((f) => (
+                  <button
+                    key={f.value}
+                    onClick={() => setStatusFilter(f.value)}
+                    className={cn(
+                      "px-3 py-2 rounded-lg text-xs font-medium border transition-colors",
+                      statusFilter === f.value
+                        ? "bg-[var(--primary)] text-white border-[var(--primary)]"
+                        : "bg-[var(--card)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {filteredSessions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <Activity className="w-12 h-12 text-[var(--muted-foreground)] mb-4 opacity-40" />
-                <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">
-                  No sessions match your filters
-                </h3>
-                <p className="text-sm text-[var(--muted-foreground)] max-w-sm">
-                  Try adjusting your search or status filter.
-                </p>
+              <div className="text-center py-20">
+                <Activity className="w-12 h-12 text-[var(--muted-foreground)] mx-auto mb-4 opacity-30" />
+                <p className="text-[var(--muted-foreground)] text-sm">No sessions match your filters.</p>
               </div>
             ) : (
               <AnimatePresence mode="popLayout">
-                <div className="grid grid-cols-1 gap-4">
+                <div className="flex flex-col gap-4">
                   {filteredSessions.map((session) => (
                     <MockSessionCard
                       key={session.id}
                       session={session}
                       isExpanded={expandedSession === session.id}
                       onToggle={() =>
-                        setExpandedSession(
-                          expandedSession === session.id ? null : session.id
+                        setExpandedSession((prev) =>
+                          prev === session.id ? null : session.id
                         )
                       }
                     />
