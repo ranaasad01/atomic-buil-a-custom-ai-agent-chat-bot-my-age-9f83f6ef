@@ -1,13 +1,20 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
-import { Search, Filter, Calendar, CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronRight, Trash2, Download, Globe, FileCode, FileText, X, Check, Square, Eye, ExternalLink, Activity, Star } from 'lucide-react';
+import { Search, Filter, Calendar, CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronRight, Trash2, Download, Globe, FileCode, FileText, X, Check, Square, Eye, ExternalLink, Activity, Star, MessageSquare } from 'lucide-react';
 import Link from "next/link";
 import { Reveal } from "@/components/Reveal";
 import { cn } from "@/lib/utils";
 import { type Session } from "@/lib/data";
+import {
+  getThreads,
+  getMessages,
+  deleteThread,
+  type Thread,
+  type ChatMessage,
+} from "@/lib/chat-store";
 
 type SessionStatus = "completed" | "running" | "error" | "pending";
 type TestFramework = "playwright" | "cypress" | "both";
@@ -141,23 +148,6 @@ const MOCK_SESSIONS: (Session & {
     total_tests: 0,
     duration_ms: 0,
   },
-  {
-    id: "sess_08",
-    target_url: "https://atlassian.com",
-    title: "Atlassian Jira Smoke Test",
-    agent_mode: "hybrid",
-    test_framework: "playwright",
-    output_types: ["script", "excel"],
-    status: "completed",
-    summary: null,
-    created_at: "2025-01-10T13:00:00Z",
-    updated_at: "2025-01-10T13:29:00Z",
-    pass_count: 22,
-    fail_count: 0,
-    skip_count: 0,
-    total_tests: 22,
-    duration_ms: 174000,
-  },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -165,113 +155,194 @@ const MOCK_SESSIONS: (Session & {
 function formatDuration(ms: number): string {
   if (ms === 0) return "—";
   const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
   const rem = s % 60;
-  return m > 0 ? `${m}m ${rem}s` : `${s}s`;
+  return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
 }
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 const STATUS_CONFIG: Record<
   SessionStatus,
-  { label: string; icon: React.ElementType; color: string; bg: string; border: string }
+  { label: string; icon: React.ReactNode; color: string; bg: string }
 > = {
   completed: {
     label: "Completed",
-    icon: CheckCircle,
+    icon: <CheckCircle className="w-3.5 h-3.5" />,
     color: "text-emerald-400",
-    bg: "bg-emerald-500/10",
-    border: "border-emerald-500/20",
+    bg: "bg-emerald-500/10 border-emerald-500/20",
   },
   running: {
     label: "Running",
-    icon: Activity,
+    icon: <Activity className="w-3.5 h-3.5" />,
     color: "text-[var(--accent)]",
-    bg: "bg-[var(--accent)]/10",
-    border: "border-[var(--accent)]/20",
+    bg: "bg-[var(--accent)]/10 border-[var(--accent)]/20",
   },
   error: {
     label: "Error",
-    icon: XCircle,
+    icon: <XCircle className="w-3.5 h-3.5" />,
     color: "text-[var(--destructive)]",
-    bg: "bg-[var(--destructive)]/10",
-    border: "border-[var(--destructive)]/20",
+    bg: "bg-[var(--destructive)]/10 border-[var(--destructive)]/20",
   },
   pending: {
     label: "Pending",
-    icon: Clock,
-    color: "text-amber-400",
-    bg: "bg-amber-500/10",
-    border: "border-amber-500/20",
+    icon: <Clock className="w-3.5 h-3.5" />,
+    color: "text-[var(--muted-foreground)]",
+    bg: "bg-white/5 border-white/10",
   },
 };
 
-const FRAMEWORK_LABELS: Record<string, string> = {
-  playwright: "Playwright",
-  cypress: "Cypress",
-  both: "Both",
+const FRAMEWORK_COLORS: Record<string, string> = {
+  playwright:
+    "bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/20",
+  cypress: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  both: "bg-purple-500/10 text-purple-400 border-purple-500/20",
 };
 
-const AGENT_MODE_LABELS: Record<string, string> = {
-  autonomous: "Autonomous",
-  hybrid: "Hybrid",
-  "instruction-driven": "Instruction-driven",
+const MODE_COLORS: Record<string, string> = {
+  autonomous: "bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/20",
+  hybrid: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+  "instruction-driven": "bg-rose-500/10 text-rose-400 border-rose-500/20",
 };
 
-const OUTPUT_ICONS: Record<string, React.ElementType> = {
-  script: FileCode,
-  excel: FileText,
-  "bug-report": AlertCircle,
-  log: FileText,
-};
+// ─── Real Thread Card ─────────────────────────────────────────────────────────
 
-// ─── Card variants ────────────────────────────────────────────────────────────
-
-const cardVariants: Variants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
-};
-
-const listVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
-};
-
-// ─── Session Card ─────────────────────────────────────────────────────────────
-
-type MockSession = Session & {
-  pass_count: number;
-  fail_count: number;
-  skip_count: number;
-  total_tests: number;
-  duration_ms: number;
-};
-
-function SessionCard({
-  session,
-  selected,
-  onSelect,
-  onDelete,
-}: {
-  session: MockSession;
-  selected: boolean;
-  onSelect: (id: string) => void;
+interface RealThreadCardProps {
+  thread: Thread;
+  messageCount: number;
   onDelete: (id: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const status = (session.status as SessionStatus) in STATUS_CONFIG
-    ? (session.status as SessionStatus)
-    : "pending";
-  const cfg = STATUS_CONFIG[status];
-  const StatusIcon = cfg.icon;
+}
+
+function RealThreadCard({ thread, messageCount, onDelete }: RealThreadCardProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  function handleDelete() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    deleteThread(thread.id);
+    onDelete(thread.id);
+  }
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className="group relative rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 hover:border-[var(--primary)]/40 transition-all duration-200 shadow-[0_1px_2px_rgba(0,0,0,0.2),0_4px_16px_-4px_rgba(0,0,0,0.3)]"
+    >
+      {/* Header row */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-[var(--foreground)] text-sm leading-snug truncate">
+            {thread.title || "Untitled Thread"}
+          </h3>
+          <div className="flex items-center gap-1.5 mt-1">
+            <Globe className="w-3 h-3 text-[var(--muted-foreground)] shrink-0" />
+            <span className="text-xs text-[var(--muted-foreground)] truncate font-mono">
+              {thread.targetUrl || "No URL set"}
+            </span>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Link
+            href="/home-chat-interface"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-colors"
+          >
+            <Eye className="w-3 h-3" />
+            View
+          </Link>
+          <button
+            onClick={handleDelete}
+            onBlur={() => setConfirmDelete(false)}
+            className={cn(
+              "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors",
+              confirmDelete
+                ? "bg-[var(--destructive)]/20 text-[var(--destructive)] border-[var(--destructive)]/30 hover:bg-[var(--destructive)]/30"
+                : "bg-white/5 text-[var(--muted-foreground)] border-white/10 hover:text-[var(--destructive)] hover:border-[var(--destructive)]/30"
+            )}
+            title={confirmDelete ? "Click again to confirm" : "Delete thread"}
+          >
+            <Trash2 className="w-3 h-3" />
+            {confirmDelete ? "Confirm" : "Delete"}
+          </button>
+        </div>
+      </div>
+
+      {/* Badges row */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {thread.agentMode && (
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border",
+              MODE_COLORS[thread.agentMode] ?? "bg-white/5 text-[var(--muted-foreground)] border-white/10"
+            )}
+          >
+            {thread.agentMode}
+          </span>
+        )}
+        {thread.framework && (
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border",
+              FRAMEWORK_COLORS[thread.framework] ?? "bg-white/5 text-[var(--muted-foreground)] border-white/10"
+            )}
+          >
+            {thread.framework}
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-white/5 text-[var(--muted-foreground)] border-white/10">
+          <MessageSquare className="w-2.5 h-2.5" />
+          {messageCount} {messageCount === 1 ? "message" : "messages"}
+        </span>
+      </div>
+
+      {/* Footer timestamps */}
+      <div className="flex items-center gap-3 text-[10px] text-[var(--muted-foreground)]">
+        <span className="flex items-center gap-1">
+          <Calendar className="w-3 h-3" />
+          Created {formatDate(thread.createdAt)}
+        </span>
+        <span className="text-[var(--border)]">·</span>
+        <span>Updated {formatDate(thread.updatedAt)}</span>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Mock Session Card ────────────────────────────────────────────────────────
+
+type MockSession = (typeof MOCK_SESSIONS)[number];
+
+interface MockSessionCardProps {
+  session: MockSession;
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+function MockSessionCard({ session, isExpanded, onToggle }: MockSessionCardProps) {
+  const status = session.status as SessionStatus;
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
   const passRate =
     session.total_tests > 0
       ? Math.round((session.pass_count / session.total_tests) * 100)
@@ -279,190 +350,185 @@ function SessionCard({
 
   return (
     <motion.div
-      variants={cardVariants}
-      className={cn(
-        "rounded-xl border transition-all duration-200",
-        "bg-[var(--card)] border-[var(--border)]",
-        selected && "ring-2 ring-[var(--primary)]/60",
-        "shadow-[0_1px_3px_rgba(0,0,0,0.3),0_4px_16px_-4px_rgba(0,0,0,0.4)]"
-      )}
+      layout
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      className="group rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden hover:border-[var(--primary)]/30 transition-all duration-200 shadow-[0_1px_2px_rgba(0,0,0,0.2),0_4px_16px_-4px_rgba(0,0,0,0.3)]"
     >
-      {/* Card header */}
-      <div className="flex items-start gap-3 p-4">
-        {/* Checkbox */}
-        <button
-          onClick={() => onSelect(session.id)}
+      {/* Card header — always visible */}
+      <button
+        onClick={onToggle}
+        className="w-full text-left p-5 flex items-start gap-4"
+      >
+        {/* Status indicator */}
+        <div
           className={cn(
-            "mt-0.5 flex-shrink-0 w-5 h-5 rounded border transition-colors",
-            selected
-              ? "bg-[var(--primary)] border-[var(--primary)] text-white"
-              : "border-[var(--border)] hover:border-[var(--primary)]/60"
+            "mt-0.5 flex items-center justify-center w-7 h-7 rounded-lg border shrink-0",
+            cfg.bg,
+            cfg.color
           )}
-          aria-label={selected ? "Deselect session" : "Select session"}
         >
-          {selected && <Check className="w-3 h-3 m-auto" />}
-        </button>
+          {cfg.icon}
+        </div>
 
-        {/* Main info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 flex-wrap">
+          {/* Title + URL */}
+          <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="font-semibold text-[var(--foreground)] text-sm truncate">
-                {session.title ?? "Untitled Session"}
+              <h3 className="font-semibold text-[var(--foreground)] text-sm leading-snug truncate">
+                {session.title}
               </h3>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <Globe className="w-3 h-3 text-[var(--muted-foreground)] flex-shrink-0" />
-                <span className="text-xs text-[var(--muted-foreground)] truncate">
+                <Globe className="w-3 h-3 text-[var(--muted-foreground)] shrink-0" />
+                <span className="text-xs text-[var(--muted-foreground)] truncate font-mono">
                   {session.target_url}
                 </span>
               </div>
             </div>
-
-            {/* Status badge */}
-            <span
+            <ChevronDown
               className={cn(
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0",
-                cfg.bg,
-                cfg.color,
-                cfg.border
+                "w-4 h-4 text-[var(--muted-foreground)] shrink-0 transition-transform duration-200",
+                isExpanded && "rotate-180"
               )}
-            >
-              <StatusIcon className="w-3 h-3" />
-              {cfg.label}
-            </span>
+            />
           </div>
 
           {/* Meta row */}
-          <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <span className="flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
-              <Calendar className="w-3 h-3" />
+          <div className="flex flex-wrap items-center gap-2 mt-2.5">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border",
+                cfg.bg,
+                cfg.color
+              )}
+            >
+              {cfg.icon}
+              {cfg.label}
+            </span>
+            <span
+              className={cn(
+                "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border",
+                FRAMEWORK_COLORS[session.test_framework] ??
+                  "bg-white/5 text-[var(--muted-foreground)] border-white/10"
+              )}
+            >
+              {session.test_framework}
+            </span>
+            <span
+              className={cn(
+                "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border",
+                MODE_COLORS[session.agent_mode] ??
+                  "bg-white/5 text-[var(--muted-foreground)] border-white/10"
+              )}
+            >
+              {session.agent_mode}
+            </span>
+            {session.total_tests > 0 && (
+              <span className="text-[10px] text-[var(--muted-foreground)]">
+                {session.pass_count}/{session.total_tests} passed
+              </span>
+            )}
+            <span className="text-[10px] text-[var(--muted-foreground)] ml-auto">
               {formatDate(session.created_at)} · {formatTime(session.created_at)}
             </span>
-            <span className="flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
-              <Clock className="w-3 h-3" />
-              {formatDuration(session.duration_ms)}
-            </span>
-            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20">
-              {FRAMEWORK_LABELS[session.test_framework] ?? session.test_framework}
-            </span>
-            <span className="text-xs px-1.5 py-0.5 rounded bg-white/5 text-[var(--muted-foreground)] border border-[var(--border)]">
-              {AGENT_MODE_LABELS[session.agent_mode] ?? session.agent_mode}
-            </span>
           </div>
-
-          {/* Test counts */}
-          {session.total_tests > 0 && (
-            <div className="flex items-center gap-3 mt-2">
-              <span className="text-xs text-emerald-400">{session.pass_count} passed</span>
-              {session.fail_count > 0 && (
-                <span className="text-xs text-[var(--destructive)]">{session.fail_count} failed</span>
-              )}
-              {session.skip_count > 0 && (
-                <span className="text-xs text-amber-400">{session.skip_count} skipped</span>
-              )}
-              <span className="text-xs text-[var(--muted-foreground)]">{session.total_tests} total</span>
-              {/* Pass rate bar */}
-              <div className="flex-1 max-w-[80px] h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-emerald-400 transition-all duration-500"
-                  style={{ width: `${passRate}%` }}
-                />
-              </div>
-              <span className="text-xs text-[var(--muted-foreground)]">{passRate}%</span>
-            </div>
-          )}
         </div>
+      </button>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <Link
-            href={`/session/${session.id}`}
-            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5 transition-colors"
-            aria-label="View session"
-          >
-            <Eye className="w-4 h-4" />
-          </Link>
-          <button
-            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5 transition-colors"
-            aria-label="Download artifacts"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => onDelete(session.id)}
-            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--destructive)] hover:bg-[var(--destructive)]/10 transition-colors"
-            aria-label="Delete session"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setExpanded((v) => !v)}
-            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5 transition-colors"
-            aria-label={expanded ? "Collapse" : "Expand"}
-          >
-            {expanded ? (
-              <ChevronDown className="w-4 h-4" />
-            ) : (
-              <ChevronRight className="w-4 h-4" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Expanded: output types */}
+      {/* Expanded detail */}
       <AnimatePresence initial={false}>
-        {expanded && (
+        {isExpanded && (
           <motion.div
-            key="expanded"
+            key="detail"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 pt-0 border-t border-[var(--border)] mt-0">
-              <p className="text-xs text-[var(--muted-foreground)] mt-3 mb-2 font-medium uppercase tracking-wide">
-                Artifacts
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {session.output_types.map((type) => {
-                  const Icon = OUTPUT_ICONS[type] ?? FileText;
-                  return (
+            <div className="px-5 pb-5 border-t border-[var(--border)] pt-4">
+              {/* Pass rate bar */}
+              {session.total_tests > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs text-[var(--muted-foreground)]">Pass rate</span>
+                    <span className="text-xs font-semibold text-[var(--foreground)]">{passRate}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                      style={{ width: `${passRate}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-4 mt-2 text-[10px] text-[var(--muted-foreground)]">
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                      {session.pass_count} passed
+                    </span>
+                    {session.fail_count > 0 && (
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--destructive)] inline-block" />
+                        {session.fail_count} failed
+                      </span>
+                    )}
+                    {session.skip_count > 0 && (
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                        {session.skip_count} skipped
+                      </span>
+                    )}
+                    <span className="ml-auto flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {formatDuration(session.duration_ms)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Output types */}
+              {session.output_types.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {session.output_types.map((type) => (
                     <span
                       key={type}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-white/5 text-[var(--muted-foreground)] border border-[var(--border)] hover:text-[var(--foreground)] transition-colors cursor-default"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-white/5 text-[var(--muted-foreground)] border border-white/10"
                     >
-                      <Icon className="w-3 h-3" />
-                      {type === "script"
-                        ? "Test Script"
-                        : type === "excel"
-                        ? "Excel Sheet"
-                        : type === "bug-report"
-                        ? "Bug Report"
-                        : "Run Log"}
+                      {type === "script" && <FileCode className="w-2.5 h-2.5" />}
+                      {type === "excel" && <FileText className="w-2.5 h-2.5" />}
+                      {type === "bug-report" && <AlertCircle className="w-2.5 h-2.5" />}
+                      {type === "log" && <Activity className="w-2.5 h-2.5" />}
+                      {type}
                     </span>
-                  );
-                })}
-              </div>
-              {session.summary && typeof session.summary === "object" && "notes" in session.summary && (
-                <p className="mt-3 text-xs text-[var(--muted-foreground)] italic">
-                  {String(session.summary.notes)}
+                  ))}
+                </div>
+              )}
+
+              {/* Summary notes */}
+              {session.summary && "notes" in session.summary && session.summary.notes && (
+                <p className="text-xs text-[var(--muted-foreground)] italic mb-4">
+                  {session.summary.notes as string}
                 </p>
               )}
-              {session.summary && typeof session.summary === "object" && "error" in session.summary && (
-                <p className="mt-3 text-xs text-[var(--destructive)] flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  {String(session.summary.error)}
+              {session.summary && "error" in session.summary && session.summary.error && (
+                <p className="text-xs text-[var(--destructive)] mb-4">
+                  Error: {session.summary.error as string}
                 </p>
               )}
-              <div className="mt-3 flex items-center gap-2">
+
+              {/* Actions */}
+              <div className="flex items-center gap-2">
                 <Link
                   href={`/session/${session.id}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 hover:bg-[var(--primary)]/25 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-colors"
                 >
-                  <ExternalLink className="w-3 h-3" />
-                  View Full Session
+                  <Eye className="w-3 h-3" />
+                  View Session
                 </Link>
+                <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-[var(--muted-foreground)] border border-white/10 hover:text-[var(--foreground)] transition-colors">
+                  <Download className="w-3 h-3" />
+                  Download
+                </button>
               </div>
             </div>
           </motion.div>
@@ -474,110 +540,121 @@ function SessionCard({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+const STATUS_FILTERS: { value: SessionStatus | "all"; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "completed", label: "Completed" },
+  { value: "running", label: "Running" },
+  { value: "error", label: "Error" },
+  { value: "pending", label: "Pending" },
+];
+
 export default function HistoryPage() {
   const t = useTranslations();
 
+  // Real threads from localStorage
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [threadMessageCounts, setThreadMessageCounts] = useState<Record<string, number>>({});
+  const [threadsLoaded, setThreadsLoaded] = useState(false);
+
+  // Mock session state
+  const [expandedSession, setExpandedSession] = useState<string | null>(null);
+
+  // Filters
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<SessionStatus | "all">("all");
-  const [frameworkFilter, setFrameworkFilter] = useState<TestFramework | "all">("all");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [sessions, setSessions] = useState(MOCK_SESSIONS);
-  const [showFilters, setShowFilters] = useState(false);
+  const [activeTab, setActiveTab] = useState<"threads" | "sessions">("threads");
 
-  const filtered = useMemo(() => {
-    return sessions.filter((s) => {
-      const matchSearch =
-        search === "" ||
-        s.title?.toLowerCase().includes(search.toLowerCase()) ||
-        s.target_url.toLowerCase().includes(search.toLowerCase());
-      const matchStatus = statusFilter === "all" || s.status === statusFilter;
-      const matchFramework =
-        frameworkFilter === "all" || s.test_framework === frameworkFilter;
-      return matchSearch && matchStatus && matchFramework;
-    });
-  }, [sessions, search, statusFilter, frameworkFilter]);
+  useEffect(() => {
+    const loadedThreads = getThreads();
+    setThreads(loadedThreads);
 
-  const handleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const handleDelete = useCallback((id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-  }, []);
-
-  const handleDeleteSelected = useCallback(() => {
-    setSessions((prev) => prev.filter((s) => !selectedIds.has(s.id)));
-    setSelectedIds(new Set());
-  }, [selectedIds]);
-
-  const handleSelectAll = useCallback(() => {
-    if (selectedIds.size === filtered.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(filtered.map((s) => s.id)));
+    const counts: Record<string, number> = {};
+    for (const thread of loadedThreads) {
+      counts[thread.id] = getMessages(thread.id).length;
     }
-  }, [filtered, selectedIds.size]);
+    setThreadMessageCounts(counts);
+    setThreadsLoaded(true);
+  }, []);
 
+  const handleDeleteThread = useCallback((id: string) => {
+    setThreads((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const filteredSessions = useMemo(() => {
+    return MOCK_SESSIONS.filter((s) => {
+      const matchesSearch =
+        search.trim() === "" ||
+        s.title.toLowerCase().includes(search.toLowerCase()) ||
+        s.target_url.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === "all" || s.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [search, statusFilter]);
+
+  const filteredThreads = useMemo(() => {
+    return threads.filter((t) => {
+      if (search.trim() === "") return true;
+      const titleMatch = (t.title ?? "").toLowerCase().includes(search.toLowerCase());
+      const urlMatch = (t.targetUrl ?? "").toLowerCase().includes(search.toLowerCase());
+      return titleMatch || urlMatch;
+    });
+  }, [threads, search]);
+
+  // Stats
   const stats = useMemo(() => {
-    const total = sessions.length;
-    const completed = sessions.filter((s) => s.status === "completed").length;
-    const running = sessions.filter((s) => s.status === "running").length;
-    const errors = sessions.filter((s) => s.status === "error").length;
-    const totalTests = sessions.reduce((acc, s) => acc + s.total_tests, 0);
-    const totalPassed = sessions.reduce((acc, s) => acc + s.pass_count, 0);
-    return { total, completed, running, errors, totalTests, totalPassed };
-  }, [sessions]);
+    const totalSessions = MOCK_SESSIONS.length;
+    const completedSessions = MOCK_SESSIONS.filter((s) => s.status === "completed").length;
+    const totalThreads = threads.length;
+    const totalMessages = Object.values(threadMessageCounts).reduce((a, b) => a + b, 0);
+    return { totalSessions, completedSessions, totalThreads, totalMessages };
+  }, [threads, threadMessageCounts]);
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      {/* Header */}
+      {/* ── Page header ── */}
       <div className="border-b border-[var(--border)] bg-[var(--card)]/40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <Reveal>
-            <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
               <div>
-                <h1 className="text-2xl font-bold text-[var(--foreground)] tracking-tight">
-                  Session History
+                <p className="text-xs font-semibold uppercase tracking-widest text-[var(--accent)] mb-2">
+                  History
+                </p>
+                <h1 className="text-3xl font-bold text-[var(--foreground)] tracking-tight">
+                  Chat Threads & Sessions
                 </h1>
-                <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                  Browse, filter, and manage all your past QA agent runs.
+                <p className="mt-2 text-sm text-[var(--muted-foreground)] max-w-lg">
+                  Browse your chat history and past QA sessions. Resume any conversation or review test artifacts.
                 </p>
               </div>
               <Link
-                href="/"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90 transition-colors shadow-[0_0_16px_var(--primary-glow)]"
+                href="/home-chat-interface"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary)]/90 transition-colors shrink-0"
               >
-                <Activity className="w-4 h-4" />
-                New Session
+                <MessageSquare className="w-4 h-4" aria-hidden="true" />
+                New Chat
               </Link>
             </div>
           </Reveal>
 
-          {/* Stats row */}
-          <Reveal delay={0.08}>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+          {/* Stats strip */}
+          <Reveal delay={0.1}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
               {[
-                { label: "Total Sessions", value: stats.total, color: "text-[var(--foreground)]" },
-                { label: "Completed", value: stats.completed, color: "text-emerald-400" },
-                { label: "Running", value: stats.running, color: "text-[var(--accent)]" },
-                { label: "Errors", value: stats.errors, color: "text-[var(--destructive)]" },
-              ].map((stat) => (
+                { label: "Chat Threads", value: stats.totalThreads, icon: MessageSquare },
+                { label: "Total Messages", value: stats.totalMessages, icon: Activity },
+                { label: "QA Sessions", value: stats.totalSessions, icon: Star },
+                { label: "Completed", value: stats.completedSessions, icon: CheckCircle },
+              ].map(({ label, value, icon: Icon }) => (
                 <div
-                  key={stat.label}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3"
+                  key={label}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 flex flex-col gap-1"
                 >
-                  <p className={cn("text-xl font-bold", stat.color)}>{stat.value}</p>
-                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{stat.label}</p>
+                  <div className="flex items-center gap-2 text-[var(--muted-foreground)]">
+                    <Icon className="w-3.5 h-3.5" />
+                    <span className="text-xs">{label}</span>
+                  </div>
+                  <span className="text-2xl font-bold text-[var(--foreground)]">{value}</span>
                 </div>
               ))}
             </div>
@@ -585,208 +662,149 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* ── Main content ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Toolbar */}
+        {/* Search + filters */}
         <Reveal>
-          <div className="flex items-center gap-3 flex-wrap mb-6">
-            {/* Search */}
-            <div className="relative flex-1 min-w-[200px]">
+          <div className="flex flex-col sm:flex-row gap-3 mb-6">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
               <input
                 type="text"
+                placeholder="Search threads or sessions..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search sessions or URLs..."
-                className="w-full pl-9 pr-4 py-2 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 transition-all"
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)]/50 transition-all"
               />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
             </div>
 
-            {/* Filter toggle */}
-            <button
-              onClick={() => setShowFilters((v) => !v)}
-              className={cn(
-                "inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors",
-                showFilters
-                  ? "bg-[var(--primary)]/15 border-[var(--primary)]/40 text-[var(--primary)]"
-                  : "border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              )}
-            >
-              <Filter className="w-4 h-4" />
-              Filters
-              {(statusFilter !== "all" || frameworkFilter !== "all") && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
-              )}
-            </button>
-
-            {/* Bulk actions */}
-            {selectedIds.size > 0 && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-2"
+            {/* Tab switcher */}
+            <div className="flex items-center gap-1 p-1 rounded-xl border border-[var(--border)] bg-[var(--card)]">
+              <button
+                onClick={() => setActiveTab("threads")}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+                  activeTab === "threads"
+                    ? "bg-[var(--primary)] text-white"
+                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                )}
               >
-                <span className="text-xs text-[var(--muted-foreground)]">
-                  {selectedIds.size} selected
-                </span>
-                <button
-                  onClick={handleDeleteSelected}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--destructive)]/10 text-[var(--destructive)] border border-[var(--destructive)]/20 hover:bg-[var(--destructive)]/20 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete selected
-                </button>
-              </motion.div>
-            )}
+                Chat Threads
+              </button>
+              <button
+                onClick={() => setActiveTab("sessions")}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+                  activeTab === "sessions"
+                    ? "bg-[var(--primary)] text-white"
+                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                )}
+              >
+                QA Sessions
+              </button>
+            </div>
           </div>
         </Reveal>
 
-        {/* Filter panel */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              key="filters"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden mb-6"
-            >
-              <div className="flex flex-wrap gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--card)]">
-                {/* Status filter */}
-                <div>
-                  <p className="text-xs font-medium text-[var(--muted-foreground)] mb-2 uppercase tracking-wide">
-                    Status
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(["all", "completed", "running", "error", "pending"] as const).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setStatusFilter(s)}
-                        className={cn(
-                          "px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors capitalize",
-                          statusFilter === s
-                            ? "bg-[var(--primary)]/20 border-[var(--primary)]/40 text-[var(--primary)]"
-                            : "border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5"
-                        )}
-                      >
-                        {s === "all" ? "All" : STATUS_CONFIG[s as SessionStatus]?.label ?? s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+        {/* Status filter (sessions only) */}
+        {activeTab === "sessions" && (
+          <Reveal>
+            <div className="flex flex-wrap gap-2 mb-6">
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setStatusFilter(f.value)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                    statusFilter === f.value
+                      ? "bg-[var(--primary)] text-white border-[var(--primary)]"
+                      : "bg-[var(--card)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </Reveal>
+        )}
 
-                {/* Framework filter */}
-                <div>
-                  <p className="text-xs font-medium text-[var(--muted-foreground)] mb-2 uppercase tracking-wide">
-                    Framework
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(["all", "playwright", "cypress", "both"] as const).map((f) => (
-                      <button
-                        key={f}
-                        onClick={() => setFrameworkFilter(f)}
-                        className={cn(
-                          "px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors",
-                          frameworkFilter === f
-                            ? "bg-[var(--primary)]/20 border-[var(--primary)]/40 text-[var(--primary)]"
-                            : "border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5"
-                        )}
-                      >
-                        {f === "all" ? "All" : FRAMEWORK_LABELS[f]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Clear */}
-                {(statusFilter !== "all" || frameworkFilter !== "all") && (
-                  <div className="flex items-end">
-                    <button
-                      onClick={() => {
-                        setStatusFilter("all");
-                        setFrameworkFilter("all");
-                      }}
-                      className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] underline transition-colors"
-                    >
-                      Clear filters
-                    </button>
-                  </div>
+        {/* ── Chat Threads Tab ── */}
+        {activeTab === "threads" && (
+          <div>
+            {!threadsLoaded ? (
+              <div className="flex items-center justify-center py-20">
+                <div className="w-6 h-6 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : filteredThreads.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <MessageSquare className="w-12 h-12 text-[var(--muted-foreground)] mb-4 opacity-40" />
+                <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">
+                  {threads.length === 0 ? "No chat threads yet" : "No threads match your search"}
+                </h3>
+                <p className="text-sm text-[var(--muted-foreground)] max-w-sm mb-6">
+                  {threads.length === 0
+                    ? "Start a new chat to begin testing websites with the QA Agent."
+                    : "Try a different search term."}
+                </p>
+                {threads.length === 0 && (
+                  <Link
+                    href="/home-chat-interface"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary)]/90 transition-colors"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Start New Chat
+                  </Link>
                 )}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Select all row */}
-        {filtered.length > 0 && (
-          <div className="flex items-center gap-2 mb-3">
-            <button
-              onClick={handleSelectAll}
-              className="inline-flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-            >
-              {selectedIds.size === filtered.length && filtered.length > 0 ? (
-                <Check className="w-3.5 h-3.5 text-[var(--primary)]" />
-              ) : (
-                <Square className="w-3.5 h-3.5" />
-              )}
-              {selectedIds.size === filtered.length && filtered.length > 0
-                ? "Deselect all"
-                : "Select all"}
-            </button>
-            <span className="text-xs text-[var(--muted-foreground)]">
-              {filtered.length} session{filtered.length !== 1 ? "s" : ""}
-            </span>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                <div className="grid grid-cols-1 gap-4">
+                  {filteredThreads.map((thread) => (
+                    <RealThreadCard
+                      key={thread.id}
+                      thread={thread}
+                      messageCount={threadMessageCounts[thread.id] ?? 0}
+                      onDelete={handleDeleteThread}
+                    />
+                  ))}
+                </div>
+              </AnimatePresence>
+            )}
           </div>
         )}
 
-        {/* Session list */}
-        {filtered.length === 0 ? (
-          <Reveal>
-            <div className="flex flex-col items-center justify-center py-24 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center mb-4">
-                <Search className="w-6 h-6 text-[var(--muted-foreground)]" />
+        {/* ── QA Sessions Tab ── */}
+        {activeTab === "sessions" && (
+          <div>
+            {filteredSessions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <Activity className="w-12 h-12 text-[var(--muted-foreground)] mb-4 opacity-40" />
+                <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">
+                  No sessions match your filters
+                </h3>
+                <p className="text-sm text-[var(--muted-foreground)] max-w-sm">
+                  Try adjusting your search or status filter.
+                </p>
               </div>
-              <h3 className="text-base font-semibold text-[var(--foreground)] mb-1">
-                No sessions found
-              </h3>
-              <p className="text-sm text-[var(--muted-foreground)] max-w-xs">
-                Try adjusting your search or filters, or start a new session.
-              </p>
-              <Link
-                href="/"
-                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 hover:bg-[var(--primary)]/25 transition-colors"
-              >
-                <Activity className="w-4 h-4" />
-                Start a new session
-              </Link>
-            </div>
-          </Reveal>
-        ) : (
-          <motion.div
-            variants={listVariants}
-            initial="hidden"
-            animate="visible"
-            className="flex flex-col gap-3"
-          >
-            {filtered.map((session) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                selected={selectedIds.has(session.id)}
-                onSelect={handleSelect}
-                onDelete={handleDelete}
-              />
-            ))}
-          </motion.div>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                <div className="grid grid-cols-1 gap-4">
+                  {filteredSessions.map((session) => (
+                    <MockSessionCard
+                      key={session.id}
+                      session={session}
+                      isExpanded={expandedSession === session.id}
+                      onToggle={() =>
+                        setExpandedSession(
+                          expandedSession === session.id ? null : session.id
+                        )
+                      }
+                    />
+                  ))}
+                </div>
+              </AnimatePresence>
+            )}
+          </div>
         )}
       </div>
     </div>

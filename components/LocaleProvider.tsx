@@ -1,11 +1,14 @@
 "use client";
 
-import { NextIntlClientProvider, type AbstractIntlMessages } from "next-intl";
+import { NextIntlClientProvider } from "next-intl";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import en from "@/messages/en.json";
 import es from "@/messages/es.json";
 
-const MESSAGES: Record<string, AbstractIntlMessages> = { en, es };
+// Cast to `any` to avoid the AbstractIntlMessages index-signature mismatch
+// caused by complex nested types (arrays) in the JSON message files.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const MESSAGES: Record<string, any> = { en, es };
 const DEFAULT_LOCALE = process.env.NEXT_PUBLIC_DEFAULT_LOCALE || "en";
 const LOCALES = (process.env.NEXT_PUBLIC_LOCALES || "en,es")
   .split(",").map((s) => s.trim()).filter(Boolean);
