@@ -1,0 +1,167 @@
+{
+  "nav": {
+    "chat": "Chat",
+    "history": "History"
+  },
+  "footer": {
+    "nav_heading": "Navigation",
+    "product_heading": "Product",
+    "playwright": "Playwright Support",
+    "cypress": "Cypress Support",
+    "excel": "Excel Test Sheets",
+    "ai_agent": "AI Agent Reasoning",
+    "copyright": "© 2024 QA Agent AI. All rights reserved.",
+    "status": "All systems operational"
+  },
+  "header": [
+    { "key": "brand", "value": "QA Agent AI" },
+    { "key": "tagline", "value": "AI-powered end-to-end testing — paste a URL, describe what to test, and let the agent do the rest." },
+    { "key": "nav_chat", "value": "Chat" },
+    { "key": "nav_history", "value": "History" },
+    { "key": "badge", "value": "BETA" },
+    { "key": "new_session", "value": "New Session" }
+  ],
+  "chat-interface": [
+    { "key": "heading", "value": "Talk to your QA Agent" },
+    { "key": "body", "value": "Type instructions in plain English. The agent reads your website, plans test cases, executes them live, and streams results back — all inside this conversation." },
+    { "key": "welcome", "value": "Hello! I'm your QA Agent. Paste a live website URL above and tell me what you'd like to test — login flows, form validation, navigation, API responses, or anything else. I'll crawl the site, write the test scripts, run them, and hand you a full report." },
+    { "key": "user_example", "value": "Test the checkout flow on https://demo.shop.com — make sure add-to-cart, quantity update, and payment form validation all work correctly." },
+    { "key": "agent_planning", "value": "Got it. I'm crawling https://demo.shop.com now. I've identified 3 key flows to test: (1) Add to Cart, (2) Quantity Update, (3) Payment Form Validation. Shall I proceed with all three, or would you like to adjust the scope?" },
+    { "key": "agent_executing", "value": "Running 12 test cases across 3 flows using Playwright. 8 passed, 2 failed, 2 pending. See the Test Results tab for the full breakdown." },
+    { "key": "streaming_cursor", "value": "animated cyan blinking cursor" }
+  ],
+  "url-input": [
+    { "key": "heading", "value": "Target Website" },
+    { "key": "body", "value": "Enter the full URL of any live website. The agent will crawl it, map its structure, and begin testing based on your instructions." },
+    { "key": "cta", "value": "Start Testing" },
+    { "key": "placeholder", "value": "https://your-website.com" },
+    { "key": "error_url", "value": "Please enter a valid URL starting with https://" },
+    { "key": "framework_label", "value": "Test Framework" },
+    { "key": "agent_mode_label", "value": "Agent Mode" },
+    { "key": "api_key_label", "value": "OpenAI API Key (optional — uses env default)" }
+  ],
+  "agent-thinking": [
+    { "key": "heading", "value": "Agent Reasoning" },
+    { "key": "body", "value": "Watch the agent think in real time. Each step is logged as it happens — from crawling the site to writing and executing test cases." },
+    { "key": "step1_title", "value": "Crawling website" },
+    { "key": "step1_detail", "value": "Fetching https://demo.shop.com — discovered 14 pages, 6 interactive forms, 3 API endpoints." },
+    { "key": "step2_title", "value": "Mapping test surface" },
+    { "key": "step2_detail", "value": "Identified critical flows: authentication, product search, cart management, checkout, and form validation." },
+    { "key": "progress_label", "value": "4 / 6 steps" },
+    { "key": "collapse_label", "value": "Hide reasoning" }
+  ],
+  "output-tabs": [
+    { "key": "heading", "value": "Output" },
+    { "key": "body", "value": "All agent outputs are organized into tabs. Switch between the live chat, test results, generated scripts, and a preview of your Excel test case sheet." },
+    { "key": "tab_chat", "value": "Chat" },
+    { "key": "tab_results", "value": "Test Results" },
+    { "key": "tab_scripts", "value": "Scripts" },
+    { "key": "tab_excel", "value": "Excel Preview" },
+    { "key": "pass_example", "value": "TC-001 · Add single item to cart · Cart Management · High · 342ms · Passed" },
+    { "key": "fail_example", "value": "TC-007 · Payment form rejects invalid CVV · Checkout · Critical · 1204ms · Failed" }
+  ],
+  "download-panel": [
+    { "key": "heading", "value": "Download Artifacts" },
+    { "key": "body", "value": "Your generated test assets are ready. Download the Playwright scripts to run locally, grab the Excel sheet for your QA team, or copy the bug report to your tracker." },
+    { "key": "cta", "value": "Download All" },
+    { "key": "scripts_label", "value": "Playwright Scripts" },
+    { "key": "excel_label", "value": "Excel Test Cases" },
+    { "key": "bug_report_label", "value": "Bug Report" },
+    { "key": "session_saved", "value": "This session is saved. View it anytime at /history or share the session link." }
+  ],
+  "session-list": [
+    { "url": "https://stripe.com", "tests": 42, "passed": 38, "failed": 4, "framework": "Playwright", "status": "Completed", "ago": "2 days ago" },
+    { "url": "https://vercel.com/dashboard", "tests": 27, "passed": 27, "failed": 0, "framework": "Playwright", "status": "Completed", "ago": "4 days ago" },
+    { "url": "https://github.com/login", "tests": 15, "passed": 12, "failed": 3, "framework": "Cypress", "status": "Completed", "ago": "6 days ago" },
+    { "url": "https://notion.so", "tests": 33, "passed": 29, "failed": 4, "framework": "Playwright", "status": "Completed", "ago": "1 week ago" },
+    { "url": "https://linear.app", "tests": 19, "passed": 19, "failed": 0, "framework": "Playwright", "status": "Completed", "ago": "9 days ago" },
+    { "url": "https://figma.com", "tests": 11, "passed": 8, "failed": 3, "framework": "Cypress", "status": "Error", "ago": "11 days ago" }
+  ],
+  "filters": [
+    { "key": "heading", "value": "Filter and Search Sessions" },
+    { "key": "search_placeholder", "value": "Search by URL or domain..." },
+    { "key": "status_label", "value": "Status" },
+    { "key": "framework_label", "value": "Framework" },
+    { "key": "date_range_label", "value": "Date Range" },
+    { "key": "clear_filters", "value": "Clear all filters" }
+  ],
+  "session-preview": [
+    { "key": "heading", "value": "Quick Session Preview" },
+    { "key": "pass_fail_chart", "value": "Pass / Fail breakdown" },
+    { "key": "reasoning_steps", "value": "Agent reasoning steps" },
+    { "key": "artifacts_available", "value": "Artifacts available" },
+    { "key": "framework_badge", "value": "Framework" },
+    { "key": "open_session", "value": "Open full session" }
+  ],
+  "bulk-actions": [
+    { "key": "heading", "value": "Manage Multiple Sessions" },
+    { "key": "select_all", "value": "Select all" },
+    { "key": "delete_selected", "value": "Delete selected" },
+    { "key": "export_selected", "value": "Export selected" },
+    { "key": "clear_selection", "value": "Clear selection" }
+  ],
+  "session-metadata": [
+    { "key": "heading", "value": "Session Overview" },
+    { "key": "target_url", "value": "Target URL" },
+    { "key": "started", "value": "Started" },
+    { "key": "framework", "value": "Test Framework" },
+    { "key": "agent_mode", "value": "Agent Mode" },
+    { "key": "total_tests", "value": "Total Tests" },
+    { "key": "status", "value": "Status" }
+  ],
+  "chat-replay": [
+    { "role": "user", "content": "Test the login flow, the checkout process, and make sure all nav links resolve without 404s." },
+    { "role": "agent", "content": "Understood. I'm crawling https://example.com now — mapping all routes, forms, and interactive elements before proposing a test plan." },
+    { "role": "agent_thinking", "content": "Step 1: Crawling homepage and extracting all anchor hrefs and form actions. Step 2: Identifying authentication endpoints. Step 3: Mapping checkout funnel pages." },
+    { "role": "agent", "content": "I've identified 3 major test suites: (1) Authentication — login, logout, failed login. (2) Checkout — add to cart, address entry, payment, confirmation. (3) Navigation integrity — 47 links checked for 404s. Shall I proceed with execution?" },
+    { "role": "user", "content": "Yes, run all three suites. Also generate the Playwright script and Excel sheet when done." },
+    { "role": "agent", "content": "Executing 23 test cases across 3 suites. Results, scripts, and Excel sheet will be ready for download once complete." }
+  ],
+  "results-panel": [
+    { "id": "TC-001", "name": "Login with valid credentials", "status": "PASS", "duration": 1240, "suite": "Authentication" },
+    { "id": "TC-002", "name": "Login with invalid password shows error message", "status": "PASS", "duration": 890, "suite": "Authentication" },
+    { "id": "TC-003", "name": "Logout clears session and redirects to /login", "status": "PASS", "duration": 760, "suite": "Authentication" },
+    { "id": "TC-004", "name": "Add item to cart from product listing page", "status": "PASS", "duration": 1580, "suite": "Checkout" },
+    { "id": "TC-005", "name": "Proceed to checkout with saved address", "status": "PASS", "duration": 2100, "suite": "Checkout" },
+    { "id": "TC-006", "name": "Payment form accepts valid card and shows confirmation", "status": "FAIL", "duration": 3450, "suite": "Checkout", "error": "Expected element '#confirmation-banner' to be visible, but it was hidden. Possible redirect loop detected on /payment." },
+    { "id": "TC-007", "name": "Empty cart shows 'Your cart is empty' state", "status": "PASS", "duration": 640, "suite": "Checkout" },
+    { "id": "TC-008", "name": "Homepage nav links resolve without 404 (47 links)", "status": "PASS", "duration": 4210, "suite": "Navigation" },
+    { "id": "TC-009", "name": "Footer links resolve without 404 (12 links)", "status": "PASS", "duration": 1890, "suite": "Navigation" },
+    { "id": "TC-010", "name": "/about page loads with correct H1 heading", "status": "PASS", "duration": 520, "suite": "Navigation" },
+    { "key": "summary", "value": "22 Passed · 1 Failed · 0 Skipped · Total runtime: 17.3 s" }
+  ],
+  "code-viewer": [
+    { "key": "heading", "value": "Generated Test Script" },
+    { "key": "body", "value": "Playwright TypeScript test script auto-generated by QA Agent AI for this session. Copy the full script or download it as a .spec.ts file ready to run in your CI pipeline." },
+    { "key": "filename", "value": "qa-agent-session-abc123.spec.ts" },
+    { "key": "framework", "value": "Playwright" },
+    { "key": "language", "value": "TypeScript" },
+    { "key": "copy_label", "value": "Copy script" },
+    { "key": "download_label", "value": "Download .spec.ts" },
+    { "key": "tc001", "value": "test('TC-001: Login with valid credentials', async ({ page }) => {\n  await page.goto('https://example.com/login');\n  await page.fill('#email', 'testuser@example.com');\n  await page.fill('#password', 'SecurePass123!');\n  await page.click('button[type=\"submit\"]');\n  await expect(page).toHaveURL('/dashboard');\n  await expect(page.locator('h1')).toContainText('Welcome back');\n});" },
+    { "key": "tc006", "value": "test('TC-006: Payment form accepts valid card', async ({ page }) => {\n  await page.goto('https://example.com/checkout/payment');\n  await page.fill('#card-number', '4242 4242 4242 4242');\n  await page.fill('#card-expiry', '12/26');\n  await page.fill('#card-cvc', '123');\n  await page.click('#pay-now-btn');\n  await expect(page.locator('#confirmation-banner')).toBeVisible();\n});" },
+    { "key": "import_line", "value": "import { test, expect } from '@playwright/test';" }
+  ],
+  "excel-preview": [
+    { "key": "heading", "value": "Test Case Sheet Preview" },
+    { "key": "body", "value": "Spreadsheet preview of all test cases generated for this session. Each row maps to an executed test — ready to share with your QA team or import into Jira." },
+    { "key": "download_label", "value": "Download Excel (.xlsx)" },
+    { "key": "row_count", "value": "23 rows · 11 columns" },
+    { "id": "TC-001", "name": "Login with valid credentials", "suite": "Authentication", "priority": "High", "steps": "1. Navigate to /login 2. Enter valid email 3. Enter valid password 4. Click Sign In", "expected": "Redirected to /dashboard, welcome message visible", "actual": "Redirected to /dashboard, H1 reads 'Welcome back'", "status": "PASS", "duration": 1240 },
+    { "id": "TC-006", "name": "Payment form accepts valid card and shows confirmation", "suite": "Checkout", "priority": "Critical", "steps": "1. Go to /checkout/payment 2. Enter card 4242 4242 4242 4242 3. Enter expiry 12/26 4. Enter CVC 123 5. Click Pay Now", "expected": "#confirmation-banner visible", "actual": "#confirmation-banner hidden — possible redirect loop", "status": "FAIL", "duration": 3450 },
+    { "id": "TC-008", "name": "Homepage nav links resolve without 404 (47 links)", "suite": "Navigation", "priority": "Medium", "steps": "1. Crawl all href values in nav 2. Send GET request to each 3. Assert HTTP 200", "expected": "All 47 links return HTTP 200", "actual": "All 47 links returned HTTP 200", "status": "PASS", "duration": 4210 }
+  ],
+  "download-artifacts": [
+    { "key": "heading", "value": "Download Artifacts" },
+    { "key": "body", "value": "All files generated by QA Agent AI for this session are ready to download. Use the Playwright script in your CI/CD pipeline, share the Excel sheet with your team, or attach the bug report to your issue tracker." },
+    { "key": "cta", "value": "Download All Artifacts (.zip)" },
+    { "key": "script_name", "value": "qa-agent-session-abc123.spec.ts" },
+    { "key": "script_meta", "value": "TypeScript · 4.2 KB" },
+    { "key": "excel_name", "value": "qa-agent-session-abc123-testcases.xlsx" },
+    { "key": "excel_meta", "value": "23 test cases · 11 columns · 18 KB" },
+    { "key": "bug_name", "value": "qa-agent-session-abc123-bugs.md" },
+    { "key": "bug_meta", "value": "1 critical issue documented with steps to reproduce" },
+    { "key": "log_name", "value": "qa-agent-session-abc123-log.json" },
+    { "key": "log_meta", "value": "Raw agent steps, timings, and metadata" }
+  ]
+}

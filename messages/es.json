@@ -1,0 +1,167 @@
+{
+  "nav": {
+    "chat": "Chat",
+    "history": "Historial"
+  },
+  "footer": {
+    "nav_heading": "Navegación",
+    "product_heading": "Producto",
+    "playwright": "Soporte Playwright",
+    "cypress": "Soporte Cypress",
+    "excel": "Hojas Excel de Pruebas",
+    "ai_agent": "Razonamiento del Agente IA",
+    "copyright": "© 2024 QA Agent AI. Todos los derechos reservados.",
+    "status": "Todos los sistemas operativos"
+  },
+  "header": [
+    { "key": "brand", "value": "QA Agent AI" },
+    { "key": "tagline", "value": "Pruebas end-to-end con IA — pega una URL, describe qué probar y deja que el agente haga el resto." },
+    { "key": "nav_chat", "value": "Chat" },
+    { "key": "nav_history", "value": "Historial" },
+    { "key": "badge", "value": "BETA" },
+    { "key": "new_session", "value": "Nueva Sesión" }
+  ],
+  "chat-interface": [
+    { "key": "heading", "value": "Habla con tu Agente QA" },
+    { "key": "body", "value": "Escribe instrucciones en español. El agente lee tu sitio web, planifica casos de prueba, los ejecuta en vivo y transmite los resultados — todo dentro de esta conversación." },
+    { "key": "welcome", "value": "¡Hola! Soy tu Agente QA. Pega una URL de sitio web activo arriba y dime qué quieres probar — flujos de inicio de sesión, validación de formularios, navegación, respuestas de API, o cualquier otra cosa. Rastrearré el sitio, escribiré los scripts de prueba, los ejecutaré y te entregaré un informe completo." },
+    { "key": "user_example", "value": "Prueba el flujo de pago en https://demo.shop.com — asegúrate de que agregar al carrito, actualización de cantidad y validación del formulario de pago funcionen correctamente." },
+    { "key": "agent_planning", "value": "Entendido. Estoy rastreando https://demo.shop.com ahora. He identificado 3 flujos clave para probar: (1) Agregar al carrito, (2) Actualización de cantidad, (3) Validación del formulario de pago. ¿Procedo con los tres, o deseas ajustar el alcance?" },
+    { "key": "agent_executing", "value": "Ejecutando 12 casos de prueba en 3 flujos usando Playwright. 8 pasaron, 2 fallaron, 2 pendientes. Consulta la pestaña de Resultados para el desglose completo." },
+    { "key": "streaming_cursor", "value": "cursor parpadeante animado en cian" }
+  ],
+  "url-input": [
+    { "key": "heading", "value": "Sitio Web Objetivo" },
+    { "key": "body", "value": "Ingresa la URL completa de cualquier sitio web activo. El agente lo rastreará, mapeará su estructura y comenzará a probar según tus instrucciones." },
+    { "key": "cta", "value": "Iniciar Pruebas" },
+    { "key": "placeholder", "value": "https://tu-sitio-web.com" },
+    { "key": "error_url", "value": "Por favor ingresa una URL válida que comience con https://" },
+    { "key": "framework_label", "value": "Framework de Pruebas" },
+    { "key": "agent_mode_label", "value": "Modo del Agente" },
+    { "key": "api_key_label", "value": "Clave API de OpenAI (opcional — usa el valor predeterminado del entorno)" }
+  ],
+  "agent-thinking": [
+    { "key": "heading", "value": "Razonamiento del Agente" },
+    { "key": "body", "value": "Observa al agente pensar en tiempo real. Cada paso se registra a medida que ocurre — desde rastrear el sitio hasta escribir y ejecutar casos de prueba." },
+    { "key": "step1_title", "value": "Rastreando sitio web" },
+    { "key": "step1_detail", "value": "Obteniendo https://demo.shop.com — descubrió 14 páginas, 6 formularios interactivos, 3 endpoints de API." },
+    { "key": "step2_title", "value": "Mapeando superficie de prueba" },
+    { "key": "step2_detail", "value": "Flujos críticos identificados: autenticación, búsqueda de productos, gestión del carrito, pago y validación de formularios." },
+    { "key": "progress_label", "value": "4 / 6 pasos" },
+    { "key": "collapse_label", "value": "Ocultar razonamiento" }
+  ],
+  "output-tabs": [
+    { "key": "heading", "value": "Salida" },
+    { "key": "body", "value": "Todas las salidas del agente están organizadas en pestañas. Cambia entre el chat en vivo, resultados de pruebas, scripts generados y una vista previa de tu hoja Excel de casos de prueba." },
+    { "key": "tab_chat", "value": "Chat" },
+    { "key": "tab_results", "value": "Resultados" },
+    { "key": "tab_scripts", "value": "Scripts" },
+    { "key": "tab_excel", "value": "Vista Excel" },
+    { "key": "pass_example", "value": "TC-001 · Agregar un artículo al carrito · Gestión del Carrito · Alto · 342ms · Pasó" },
+    { "key": "fail_example", "value": "TC-007 · El formulario de pago rechaza CVV inválido · Pago · Crítico · 1204ms · Falló" }
+  ],
+  "download-panel": [
+    { "key": "heading", "value": "Descargar Artefactos" },
+    { "key": "body", "value": "Tus activos de prueba generados están listos. Descarga los scripts de Playwright para ejecutar localmente, obtén la hoja Excel para tu equipo de QA, o copia el informe de errores a tu rastreador." },
+    { "key": "cta", "value": "Descargar Todo" },
+    { "key": "scripts_label", "value": "Scripts de Playwright" },
+    { "key": "excel_label", "value": "Casos de Prueba Excel" },
+    { "key": "bug_report_label", "value": "Informe de Errores" },
+    { "key": "session_saved", "value": "Esta sesión está guardada. Véala en cualquier momento en /history o comparte el enlace de sesión." }
+  ],
+  "session-list": [
+    { "url": "https://stripe.com", "tests": 42, "passed": 38, "failed": 4, "framework": "Playwright", "status": "Completado", "ago": "hace 2 días" },
+    { "url": "https://vercel.com/dashboard", "tests": 27, "passed": 27, "failed": 0, "framework": "Playwright", "status": "Completado", "ago": "hace 4 días" },
+    { "url": "https://github.com/login", "tests": 15, "passed": 12, "failed": 3, "framework": "Cypress", "status": "Completado", "ago": "hace 6 días" },
+    { "url": "https://notion.so", "tests": 33, "passed": 29, "failed": 4, "framework": "Playwright", "status": "Completado", "ago": "hace 1 semana" },
+    { "url": "https://linear.app", "tests": 19, "passed": 19, "failed": 0, "framework": "Playwright", "status": "Completado", "ago": "hace 9 días" },
+    { "url": "https://figma.com", "tests": 11, "passed": 8, "failed": 3, "framework": "Cypress", "status": "Error", "ago": "hace 11 días" }
+  ],
+  "filters": [
+    { "key": "heading", "value": "Filtrar y Buscar Sesiones" },
+    { "key": "search_placeholder", "value": "Buscar por URL o dominio..." },
+    { "key": "status_label", "value": "Estado" },
+    { "key": "framework_label", "value": "Framework" },
+    { "key": "date_range_label", "value": "Rango de Fechas" },
+    { "key": "clear_filters", "value": "Limpiar todos los filtros" }
+  ],
+  "session-preview": [
+    { "key": "heading", "value": "Vista Previa Rápida de Sesión" },
+    { "key": "pass_fail_chart", "value": "Desglose de Aprobados / Fallidos" },
+    { "key": "reasoning_steps", "value": "Pasos de razonamiento del agente" },
+    { "key": "artifacts_available", "value": "Artefactos disponibles" },
+    { "key": "framework_badge", "value": "Framework" },
+    { "key": "open_session", "value": "Abrir sesión completa" }
+  ],
+  "bulk-actions": [
+    { "key": "heading", "value": "Gestionar Múltiples Sesiones" },
+    { "key": "select_all", "value": "Seleccionar todo" },
+    { "key": "delete_selected", "value": "Eliminar seleccionados" },
+    { "key": "export_selected", "value": "Exportar seleccionados" },
+    { "key": "clear_selection", "value": "Limpiar selección" }
+  ],
+  "session-metadata": [
+    { "key": "heading", "value": "Resumen de Sesión" },
+    { "key": "target_url", "value": "URL Objetivo" },
+    { "key": "started", "value": "Iniciado" },
+    { "key": "framework", "value": "Framework de Pruebas" },
+    { "key": "agent_mode", "value": "Modo del Agente" },
+    { "key": "total_tests", "value": "Total de Pruebas" },
+    { "key": "status", "value": "Estado" }
+  ],
+  "chat-replay": [
+    { "role": "user", "content": "Prueba el flujo de inicio de sesión, el proceso de pago y asegúrate de que todos los enlaces de navegación se resuelvan sin errores 404." },
+    { "role": "agent", "content": "Entendido. Estoy rastreando https://example.com ahora — mapeando todas las rutas, formularios y elementos interactivos antes de proponer un plan de prueba." },
+    { "role": "agent_thinking", "content": "Paso 1: Rastreando la página de inicio y extrayendo todos los href de anclaje y acciones de formulario. Paso 2: Identificando endpoints de autenticación. Paso 3: Mapeando páginas del embudo de pago." },
+    { "role": "agent", "content": "He identificado 3 suites de prueba principales: (1) Autenticación — inicio de sesión, cierre de sesión, inicio de sesión fallido. (2) Pago — agregar al carrito, entrada de dirección, pago, confirmación. (3) Integridad de navegación — 47 enlaces verificados para errores 404. ¿Procedo con la ejecución?" },
+    { "role": "user", "content": "Sí, ejecuta las tres suites. También genera el script de Playwright y la hoja Excel cuando termines." },
+    { "role": "agent", "content": "Ejecutando 23 casos de prueba en 3 suites. Los resultados, scripts y hoja Excel estarán listos para descargar una vez completados." }
+  ],
+  "results-panel": [
+    { "id": "TC-001", "name": "Inicio de sesión con credenciales válidas", "status": "PASS", "duration": 1240, "suite": "Autenticación" },
+    { "id": "TC-002", "name": "Inicio de sesión con contraseña inválida muestra mensaje de error", "status": "PASS", "duration": 890, "suite": "Autenticación" },
+    { "id": "TC-003", "name": "Cierre de sesión limpia la sesión y redirige a /login", "status": "PASS", "duration": 760, "suite": "Autenticación" },
+    { "id": "TC-004", "name": "Agregar artículo al carrito desde la página de listado de productos", "status": "PASS", "duration": 1580, "suite": "Pago" },
+    { "id": "TC-005", "name": "Proceder al pago con dirección guardada", "status": "PASS", "duration": 2100, "suite": "Pago" },
+    { "id": "TC-006", "name": "El formulario de pago acepta tarjeta válida y muestra confirmación", "status": "FAIL", "duration": 3450, "suite": "Pago", "error": "Se esperaba que el elemento '#confirmation-banner' fuera visible, pero estaba oculto. Posible bucle de redirección detectado en /payment." },
+    { "id": "TC-007", "name": "El carrito vacío muestra el estado 'Tu carrito está vacío'", "status": "PASS", "duration": 640, "suite": "Pago" },
+    { "id": "TC-008", "name": "Los enlaces de navegación de la página de inicio se resuelven sin errores 404 (47 enlaces)", "status": "PASS", "duration": 4210, "suite": "Navegación" },
+    { "id": "TC-009", "name": "Los enlaces del pie de página se resuelven sin errores 404 (12 enlaces)", "status": "PASS", "duration": 1890, "suite": "Navegación" },
+    { "id": "TC-010", "name": "La página /about carga con el encabezado H1 correcto", "status": "PASS", "duration": 520, "suite": "Navegación" },
+    { "key": "summary", "value": "22 Aprobados · 1 Fallido · 0 Omitidos · Tiempo total: 17.3 s" }
+  ],
+  "code-viewer": [
+    { "key": "heading", "value": "Script de Prueba Generado" },
+    { "key": "body", "value": "Script de prueba TypeScript de Playwright generado automáticamente por QA Agent AI para esta sesión. Copia el script completo o descárgalo como archivo .spec.ts listo para ejecutar en tu pipeline de CI." },
+    { "key": "filename", "value": "qa-agent-session-abc123.spec.ts" },
+    { "key": "framework", "value": "Playwright" },
+    { "key": "language", "value": "TypeScript" },
+    { "key": "copy_label", "value": "Copiar script" },
+    { "key": "download_label", "value": "Descargar .spec.ts" },
+    { "key": "tc001", "value": "test('TC-001: Inicio de sesión con credenciales válidas', async ({ page }) => {\n  await page.goto('https://example.com/login');\n  await page.fill('#email', 'testuser@example.com');\n  await page.fill('#password', 'SecurePass123!');\n  await page.click('button[type=\"submit\"]');\n  await expect(page).toHaveURL('/dashboard');\n  await expect(page.locator('h1')).toContainText('Bienvenido de vuelta');\n});" },
+    { "key": "tc006", "value": "test('TC-006: El formulario de pago acepta tarjeta válida', async ({ page }) => {\n  await page.goto('https://example.com/checkout/payment');\n  await page.fill('#card-number', '4242 4242 4242 4242');\n  await page.fill('#card-expiry', '12/26');\n  await page.fill('#card-cvc', '123');\n  await page.click('#pay-now-btn');\n  await expect(page.locator('#confirmation-banner')).toBeVisible();\n});" },
+    { "key": "import_line", "value": "import { test, expect } from '@playwright/test';" }
+  ],
+  "excel-preview": [
+    { "key": "heading", "value": "Vista Previa de Hoja de Casos de Prueba" },
+    { "key": "body", "value": "Vista previa de hoja de cálculo de todos los casos de prueba generados para esta sesión. Cada fila corresponde a una prueba ejecutada — lista para compartir con tu equipo de QA o importar a Jira." },
+    { "key": "download_label", "value": "Descargar Excel (.xlsx)" },
+    { "key": "row_count", "value": "23 filas · 11 columnas" },
+    { "id": "TC-001", "name": "Inicio de sesión con credenciales válidas", "suite": "Autenticación", "priority": "Alto", "steps": "1. Navegar a /login 2. Ingresar email válido 3. Ingresar contraseña válida 4. Hacer clic en Iniciar Sesión", "expected": "Redirigido a /dashboard, mensaje de bienvenida visible", "actual": "Redirigido a /dashboard, H1 dice 'Bienvenido de vuelta'", "status": "PASS", "duration": 1240 },
+    { "id": "TC-006", "name": "El formulario de pago acepta tarjeta válida y muestra confirmación", "suite": "Pago", "priority": "Crítico", "steps": "1. Ir a /checkout/payment 2. Ingresar tarjeta 4242 4242 4242 4242 3. Ingresar vencimiento 12/26 4. Ingresar CVC 123 5. Hacer clic en Pagar Ahora", "expected": "#confirmation-banner visible", "actual": "#confirmation-banner oculto — posible bucle de redirección", "status": "FAIL", "duration": 3450 },
+    { "id": "TC-008", "name": "Los enlaces de navegación de la página de inicio se resuelven sin errores 404 (47 enlaces)", "suite": "Navegación", "priority": "Medio", "steps": "1. Rastrear todos los valores href en nav 2. Enviar solicitud GET a cada uno 3. Verificar HTTP 200", "expected": "Los 47 enlaces devuelven HTTP 200", "actual": "Los 47 enlaces devolvieron HTTP 200", "status": "PASS", "duration": 4210 }
+  ],
+  "download-artifacts": [
+    { "key": "heading", "value": "Descargar Artefactos" },
+    { "key": "body", "value": "Todos los archivos generados por QA Agent AI para esta sesión están listos para descargar. Usa el script de Playwright en tu pipeline de CI/CD, comparte la hoja Excel con tu equipo, o adjunta el informe de errores a tu rastreador de problemas." },
+    { "key": "cta", "value": "Descargar Todos los Artefactos (.zip)" },
+    { "key": "script_name", "value": "qa-agent-session-abc123.spec.ts" },
+    { "key": "script_meta", "value": "TypeScript · 4.2 KB" },
+    { "key": "excel_name", "value": "qa-agent-session-abc123-testcases.xlsx" },
+    { "key": "excel_meta", "value": "23 casos de prueba · 11 columnas · 18 KB" },
+    { "key": "bug_name", "value": "qa-agent-session-abc123-bugs.md" },
+    { "key": "bug_meta", "value": "1 problema crítico documentado con pasos para reproducir" },
+    { "key": "log_name", "value": "qa-agent-session-abc123-log.json" },
+    { "key": "log_meta", "value": "Pasos del agente sin procesar, tiempos y metadatos" }
+  ]
+}
