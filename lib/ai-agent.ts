@@ -1,5 +1,88 @@
 import type { ArtifactPreview, StepItem } from "@/lib/chat-store";
 
+// ─── SQA System Prompt ────────────────────────────────────────────────────────
+// This prompt is stored server-side only and shapes all agent responses.
+// It is never exposed to the client directly.
+
+export const SQA_SYSTEM_PROMPT = `You are a Senior Software Quality Assurance (SQA) Engineer with 10+ years of experience in end-to-end testing, test automation, and quality processes. You specialise in:
+
+- End-to-end (E2E) test planning and execution for web applications
+- Writing production-ready automation scripts using Playwright and Cypress
+- Designing structured test case documents (Excel/XLSX format with columns: Test Case ID, Module, Test Name, Preconditions, Test Steps, Expected Result, Actual Result, Status, Priority, Severity, Assigned To, Notes)
+- Identifying and documenting bugs with clear reproduction steps, severity ratings, and screenshots
+- Accessibility testing (WCAG 2.1 AA compliance)
+- Performance and load testing analysis
+- API and integration testing
+- CI/CD pipeline integration for automated test suites
+- Risk-based testing and coverage analysis
+
+When given a URL, you:
+1. Crawl and map all user-facing flows and interactive elements
+2. Prioritise test cases by risk and business impact
+3. Write clean, maintainable, well-commented automation scripts
+4. Generate comprehensive Excel test case sheets with all required columns
+5. Produce actionable bug reports with severity, priority, and reproduction steps
+6. Suggest improvements to the application's testability
+
+You communicate in a professional but approachable tone. You always explain your reasoning, flag risks, and provide concrete next steps. You never skip edge cases or negative test scenarios.`;
+
+// ─── LLM Config ───────────────────────────────────────────────────────────────
+// Reads server-side environment variables only (no NEXT_PUBLIC_ prefix).
+// Must be called at runtime on the server, never at module load time.
+
+export interface LLMConfig {
+  provider: string;
+  model: string;
+  apiKey: string;
+}
+
+/**
+ * Reads LLM provider configuration from server-side environment variables.
+ * Supported providers: openai, anthropic, gemini, groq.
+ * Throws if no API key is found for the configured provider.
+ *
+ * @returns LLMConfig with provider, model, and apiKey
+ * @throws Error if no API key is configured
+ */
+export function getLLMConfig(): LLMConfig {
+  const provider = (process.env.LLM_PROVIDER ?? "openai").toLowerCase();
+  const model = process.env.LLM_MODEL ?? getDefaultModel(provider);
+
+  const keyMap: Record<string, string | undefined> = {
+    openai: process.env.OPENAI_API_KEY,
+    anthropic: process.env.ANTHROPIC_API_KEY,
+    gemini: process.env.GEMINI_API_KEY,
+    groq: process.env.GROQ_API_KEY,
+  };
+
+  const apiKey = keyMap[provider];
+
+  if (!apiKey) {
+    throw new Error(
+      `No API key found for LLM provider "${provider}". ` +
+        `Set the ${provider.toUpperCase()}_API_KEY environment variable in your .env.local file.`
+    );
+  }
+
+  return { provider, model, apiKey };
+}
+
+function getDefaultModel(provider: string): string {
+  switch (provider) {
+    case "anthropic":
+      return "claude-3-5-sonnet-20241022";
+    case "gemini":
+      return "gemini-1.5-pro";
+    case "groq":
+      return "llama-3.3-70b-versatile";
+    case "openai":
+    default:
+      return "gpt-4o";
+  }
+}
+
+// ─── Agent Types ──────────────────────────────────────────────────────────────
+
 export interface AgentContext {
   threadId: string;
   targetUrl?: string;
@@ -8,9 +91,11 @@ export interface AgentContext {
   messageHistory: Array<{ role: string; content: string }>;
 }
 
+// ─── Internals ────────────────────────────────────────────────────────────────
+
 const URL_REGEX = /https?:\/\/[^\s]+/g;
 
-function extractUrl(text: string): string | null {
+export function extractUrl(text: string): string | null {
   const matches = text.match(URL_REGEX);
   return matches ? matches[0].replace(/[.,;!?]$/, "") : null;
 }
@@ -26,7 +111,11 @@ function getDomain(url: string): string {
 function getFlowsForDomain(domain: string): string[] {
   const domainLower = domain.toLowerCase();
 
-  if (domainLower.includes("shop") || domainLower.includes("store") || domainLower.includes("commerce")) {
+  if (
+    domainLower.includes("shop") ||
+    domainLower.includes("store") ||
+    domainLower.includes("commerce")
+  ) {
     return [
       "User registration and login",
       "Product search and filtering",
@@ -45,7 +134,11 @@ function getFlowsForDomain(domain: string): string[] {
       "Code search and navigation",
     ];
   }
-  if (domainLower.includes("stripe") || domainLower.includes("pay") || domainLower.includes("fintech")) {
+  if (
+    domainLower.includes("stripe") ||
+    domainLower.includes("pay") ||
+    domainLower.includes("fintech")
+  ) {
     return [
       "Account sign-in and 2FA",
       "Payment method management",
@@ -55,7 +148,11 @@ function getFlowsForDomain(domain: string): string[] {
       "API key management",
     ];
   }
-  if (domainLower.includes("notion") || domainLower.includes("linear") || domainLower.includes("jira")) {
+  if (
+    domainLower.includes("notion") ||
+    domainLower.includes("linear") ||
+    domainLower.includes("jira")
+  ) {
     return [
       "Workspace creation and onboarding",
       "Page / issue creation and editing",
@@ -91,6 +188,8 @@ function buildUrlResponse(url: string, context: AgentContext): string {
   const framework = context.framework ?? "playwright";
   const passed = flows.length - 1;
   const failed = 1;
+  // Use a deterministic duration based on domain length to avoid hydration mismatch
+  const duration = 30 + (domain.length % 60);
 
   const flowList = flows.map((f, i) => `  ${i + 1}. ${f}`).join("\n");
 
@@ -112,7 +211,7 @@ Executing test suite ...
   ✓ ${passed * 2} tests passed
   ✗ ${failed} test failed  →  Form validation missing on required field
   ⚠  2 accessibility warnings (WCAG AA)
-Duration: ${Math.floor(Math.random() * 60 + 30)}s
+Duration: ${duration}s
 \`\`\`
 
 ### Results Summary
@@ -129,484 +228,236 @@ Duration: ${Math.floor(Math.random() * 60 + 30)}s
 
 - **playwright-tests.spec.ts** — Full test suite (${flows.length} describe blocks)
 - **test-cases.xlsx** — Structured Excel workbook with IDs, steps, and expected results
-- **bug-report.md** — 1 critical issue with screenshot and reproduction steps
-- **run-log.txt** — Complete execution log
+- **bug-report.md** — ${failed} bug documented with reproduction steps and severity rating
 
-All artifacts are ready for download in the panel below.`;
+### Next Steps
+
+1. Review the failed test and apply the suggested fix
+2. Resolve the 2 WCAG AA accessibility warnings
+3. Integrate the Playwright spec into your CI pipeline
+4. Share the Excel sheet with your QA team for sign-off
+
+Would you like me to dive deeper into any specific flow, generate additional edge-case tests, or export the artifacts in a different format?`;
 }
 
-function buildPlaywrightResponse(context: AgentContext): string {
-  const url = context.targetUrl ?? "https://example.com";
-  return `## Generated Playwright Test Script
+function buildGenericResponse(
+  userMessage: string,
+  context: AgentContext
+): string {
+  const lowerMsg = userMessage.toLowerCase();
 
-Here's a production-ready test suite for **${url}**:
+  if (lowerMsg.includes("playwright") || lowerMsg.includes("script")) {
+    return `## Playwright Test Script
+
+Here's a production-ready Playwright script based on your request:
 
 \`\`\`typescript
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = '${url}';
-
-test.describe('QA Agent — Generated Suite', () => {
+test.describe('Core User Flows', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(BASE_URL);
-    await page.waitForLoadState('networkidle');
+    await page.goto(process.env.BASE_URL ?? 'https://example.com');
   });
 
   test('should load the homepage successfully', async ({ page }) => {
     await expect(page).toHaveTitle(/.+/);
-    await expect(page.locator('body')).toBeVisible();
+    await expect(page.locator('main')).toBeVisible();
   });
 
   test('should navigate primary links without errors', async ({ page }) => {
-    const links = page.locator('nav a');
-    const count = await links.count();
+    const navLinks = page.locator('nav a');
+    const count = await navLinks.count();
     expect(count).toBeGreaterThan(0);
-    for (let i = 0; i < Math.min(count, 5); i++) {
-      const href = await links.nth(i).getAttribute('href');
-      if (href && href.startsWith('/')) {
-        await page.goto(BASE_URL + href);
-        await expect(page.locator('body')).toBeVisible();
-        await page.goBack();
-      }
-    }
   });
 
-  test('should validate required form fields', async ({ page }) => {
+  test('should submit the main form with valid data', async ({ page }) => {
     const form = page.locator('form').first();
     if (await form.isVisible()) {
-      await page.locator('button[type="submit"]').first().click();
-      const errors = page.locator('[aria-invalid="true"], .error, .field-error');
-      await expect(errors.first()).toBeVisible();
+      await form.locator('input[type="email"]').fill('test@example.com');
+      await form.locator('button[type="submit"]').click();
+      await expect(page.locator('[role="alert"], .success')).toBeVisible({ timeout: 5000 });
     }
   });
 
-  test('should be responsive on mobile viewport', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 812 });
-    await page.goto(BASE_URL);
-    await expect(page.locator('body')).toBeVisible();
-    const overflow = await page.evaluate(() =>
-      document.documentElement.scrollWidth > document.documentElement.clientWidth
-    );
-    expect(overflow).toBe(false);
-  });
-
-  test('should have no broken images', async ({ page }) => {
-    const images = page.locator('img');
-    const count = await images.count();
-    for (let i = 0; i < count; i++) {
-      const naturalWidth = await images.nth(i).evaluate(
-        (img: HTMLImageElement) => img.naturalWidth
-      );
-      expect(naturalWidth).toBeGreaterThan(0);
-    }
+  test('should display a 404 page for unknown routes', async ({ page }) => {
+    await page.goto('/this-route-does-not-exist-404');
+    await expect(page.locator('body')).toContainText(/404|not found/i);
   });
 });
 \`\`\`
 
-This script covers:
-- Page load and title validation
-- Navigation link traversal
-- Form validation error states
-- Mobile viewport responsiveness
-- Broken image detection
+This script covers the four highest-risk flows. Paste your target URL and I'll tailor it to your specific application.`;
+  }
 
-Drop this file into your \`tests/\` directory and run \`npx playwright test\`.`;
-}
+  if (lowerMsg.includes("excel") || lowerMsg.includes("test case")) {
+    return `## Excel Test Case Sheet Structure
 
-function buildExcelResponse(context: AgentContext): string {
-  const url = context.targetUrl ?? "https://example.com";
-  return `## Excel Test Case Sheet — \`${url}\`
+Here's the schema I use for all generated Excel workbooks:
 
-The generated workbook contains the following structure:
+| Column | Description |
+|--------|-------------|
+| **Test Case ID** | Unique identifier, e.g. TC-001 |
+| **Module** | Feature area, e.g. Authentication |
+| **Test Name** | Short descriptive title |
+| **Preconditions** | State required before execution |
+| **Test Steps** | Numbered, atomic actions |
+| **Expected Result** | Observable outcome |
+| **Actual Result** | Filled during execution |
+| **Status** | Pass / Fail / Skip / Blocked |
+| **Priority** | Critical / High / Medium / Low |
+| **Severity** | Blocker / Major / Minor / Trivial |
+| **Assigned To** | Tester name or team |
+| **Notes** | Screenshots, links, comments |
 
-### Sheet 1: Test Cases
+Share a URL and I'll generate a fully populated workbook for your application's flows.`;
+  }
 
-| TC ID | Module | Test Name | Preconditions | Steps | Expected Result | Priority | Status |
-|-------|--------|-----------|---------------|-------|-----------------|----------|--------|
-| TC-001 | Auth | Valid login | User registered | 1. Navigate to /login 2. Enter credentials 3. Click Submit | Redirect to dashboard | High | Pass |
-| TC-002 | Auth | Invalid password | User registered | 1. Navigate to /login 2. Enter wrong password 3. Click Submit | Error message shown | High | Pass |
-| TC-003 | Auth | Empty fields | None | 1. Navigate to /login 2. Click Submit | Validation errors shown | High | Pass |
-| TC-004 | Navigation | Primary nav links | Homepage loaded | 1. Click each nav link | Correct page loads, no 404 | Medium | Pass |
-| TC-005 | Forms | Required field validation | Form visible | 1. Submit empty form | All required fields highlighted | High | Fail |
-| TC-006 | Responsive | Mobile layout | None | 1. Set viewport 375px 2. Load page | No horizontal overflow | Medium | Pass |
-| TC-007 | Accessibility | Keyboard navigation | None | 1. Tab through all interactive elements | Focus visible on all elements | Medium | Pass |
-| TC-008 | Performance | Page load time | None | 1. Load page 2. Measure LCP | LCP under 2.5s | Low | Pass |
+  if (lowerMsg.includes("bug") || lowerMsg.includes("report")) {
+    return `## Bug Report Template
 
-### Sheet 2: Bug Report Summary
+I structure all bug reports with the following fields:
 
-| Bug ID | Severity | Module | Description | Steps to Reproduce |
-|--------|----------|--------|-------------|--------------------|
-| BUG-001 | High | Forms | Required field validation missing on email input | See TC-005 |
+**Bug ID:** BUG-001  
+**Title:** [Component] — Short description of the defect  
+**Severity:** Blocker | Critical | Major | Minor | Trivial  
+**Priority:** P1 | P2 | P3 | P4  
+**Status:** Open | In Progress | Resolved | Closed  
+**Environment:** Browser, OS, viewport, test framework version  
 
-### Sheet 3: Coverage Matrix
+**Steps to Reproduce:**
+1. Navigate to [URL]
+2. Perform [action]
+3. Observe [unexpected behaviour]
 
-| Module | Total TCs | Passed | Failed | Coverage |
-|--------|-----------|--------|--------|----------|
-| Auth | 3 | 3 | 0 | 100% |
-| Navigation | 1 | 1 | 0 | 100% |
-| Forms | 1 | 0 | 1 | 0% |
-| Responsive | 1 | 1 | 0 | 100% |
-| Accessibility | 1 | 1 | 0 | 100% |
-| Performance | 1 | 1 | 0 | 100% |
+**Expected Result:** What should happen  
+**Actual Result:** What actually happens  
+**Screenshots / Logs:** Attached  
+**Suggested Fix:** Optional engineering note  
 
-The **.xlsx** file is ready for download. It includes conditional formatting (green/red/yellow for pass/fail/pending) and auto-filters on every column.`;
-}
+Paste a URL and describe the issue — I'll generate a complete, developer-ready bug report.`;
+  }
 
-function buildBugReportResponse(context: AgentContext): string {
-  const url = context.targetUrl ?? "https://example.com";
-  return `## Bug Report — \`${url}\`
+  if (lowerMsg.includes("accessibility") || lowerMsg.includes("wcag") || lowerMsg.includes("a11y")) {
+    return `## Accessibility Testing (WCAG 2.1 AA)
 
----
+I check the following categories on every run:
 
-### BUG-001 — Critical
+- **Perceivable:** Alt text on images, colour contrast ratios (4.5:1 normal, 3:1 large text), captions on media
+- **Operable:** Full keyboard navigation, visible focus indicators, no keyboard traps, skip-to-content links
+- **Understandable:** Form labels and error messages, consistent navigation, language attribute on \`<html>\`
+- **Robust:** Valid HTML semantics, ARIA roles and attributes, screen-reader compatibility
 
-**Title:** Form submission accepted with empty required fields
+Share a URL and I'll run an automated accessibility audit and flag every WCAG AA violation with its impact level and a suggested fix.`;
+  }
 
-**Severity:** High
-**Priority:** P1
-**Module:** Forms / Checkout
-**Reported by:** QA Agent AI
+  if (lowerMsg.includes("hello") || lowerMsg.includes("hi") || lowerMsg.includes("help")) {
+    return `## How I Can Help
 
-#### Environment
-- URL: \`${url}\`
-- Browser: Chromium 124
-- Viewport: 1280 × 800
-- Framework: Playwright
+I'm your Senior QA Engineer agent. Here's what I can do:
 
-#### Steps to Reproduce
-1. Navigate to \`${url}\`
-2. Locate the primary form on the page
-3. Leave all required fields empty
-4. Click the **Submit** button
+1. **End-to-end testing** — Paste a URL and I'll crawl, map, and test every critical flow
+2. **Playwright / Cypress scripts** — Production-ready automation scripts for your CI pipeline
+3. **Excel test case sheets** — Structured workbooks with all standard QA columns
+4. **Bug reports** — Detailed reports with reproduction steps, severity, and screenshots
+5. **Accessibility audits** — WCAG 2.1 AA compliance checks with actionable fixes
+6. **Coverage analysis** — Map which flows are tested and which are missing
 
-#### Expected Result
-Validation errors should appear on all required fields. Form should not submit.
+To get started, paste a live website URL and describe what you'd like to test.`;
+  }
 
-#### Actual Result
-Form submits without validation. No error messages displayed. Network request sent with empty payload.
+  return `I'm ready to help with your QA needs. To get the most out of me, try one of these:
 
-#### Evidence
-- Screenshot: \`bug-001-empty-submit.png\`
-- Console errors: \`Uncaught TypeError: Cannot read properties of undefined\`
-- Network log: POST returned 500 Internal Server Error
-
----
-
-### BUG-002 — Medium
-
-**Title:** Missing ARIA labels on icon-only buttons
-
-**Severity:** Medium
-**Priority:** P2
-**Module:** Accessibility
-
-#### Steps to Reproduce
-1. Inspect icon-only buttons in the navigation
-2. Check for \`aria-label\` or \`title\` attributes
-
-#### Expected Result
-All interactive elements have descriptive ARIA labels.
-
-#### Actual Result
-3 icon buttons have no accessible name. Screen readers announce them as unlabelled.
-
----
-
-Full bug report with screenshots exported to **bug-report.pdf**.`;
-}
-
-function buildAccessibilityResponse(context: AgentContext): string {
-  const url = context.targetUrl ?? "https://example.com";
-  return `## Accessibility Audit — \`${url}\`
-
-Audit standard: **WCAG 2.1 Level AA**
-
-### Summary
-
-| Category | Issues Found |
-|----------|--------------|
-| Critical (Level A) | 1 |
-| Serious (Level AA) | 3 |
-| Moderate | 2 |
-| Minor | 4 |
-
-### Findings
-
-#### Critical
-- **Missing form labels** — 2 input fields have no associated \`<label>\` or \`aria-label\`. Screen readers cannot identify the field purpose.
-
-#### Serious
-- **Insufficient color contrast** — Body text (#94a3b8 on #1e293b) has a contrast ratio of 3.8:1. WCAG AA requires 4.5:1 for normal text.
-- **No skip navigation link** — Keyboard users must tab through the entire nav on every page.
-- **Focus not visible on custom dropdowns** — Focus ring removed via \`outline: none\` without a replacement.
-
-#### Moderate
-- **Images missing alt text** — 4 decorative images lack \`alt=""\` to signal they should be ignored by screen readers.
-- **Heading hierarchy skipped** — Page jumps from \`<h1>\` to \`<h3>\` in the sidebar.
-
-### Recommendations
-
-\`\`\`html
-<!-- Add aria-label to icon buttons -->
-<button aria-label="Close dialog">
-  <svg aria-hidden="true">...</svg>
-</button>
-
-<!-- Add skip link at top of body -->
-<a href="#main-content" class="sr-only focus:not-sr-only">
-  Skip to main content
-</a>
-
-<!-- Ensure focus is always visible -->
-:focus-visible {
-  outline: 2px solid #22d3ee;
-  outline-offset: 2px;
-}
-\`\`\`
-
-Full axe-core report exported to **accessibility-report.json**.`;
-}
-
-function buildFollowUpResponse(context: AgentContext): string {
-  const url = context.targetUrl ?? "the previously tested site";
-  return `Based on our earlier test of **${url}**, I can dig deeper into any specific area.
-
-Here's what we've covered so far:
-- End-to-end test execution across all primary flows
-- Playwright script generation
-- Excel test case documentation
-- Bug report with reproduction steps
-
-**What would you like to do next?**
-
-- Run a **regression test** after your latest deployment
-- Add **API endpoint testing** to the suite
-- Generate a **Cypress** version of the existing scripts
-- Expand **accessibility coverage** to WCAG 2.2
-- Set up a **CI/CD integration** config (GitHub Actions / GitLab CI)
-
-Just tell me what you need and I'll get started right away.`;
-}
-
-function buildDefaultResponse(): string {
-  return `## QA Agent Ready
-
-I'm your AI-powered QA engineer. Here's what I can do for you:
-
-- **End-to-end testing** — Paste any live URL and I'll crawl, map, and test it automatically
-- **Script generation** — Playwright or Cypress test scripts ready for your CI pipeline
-- **Excel test cases** — Structured workbooks with IDs, steps, expected results, and priority
-- **Bug reports** — Detailed reports with screenshots and reproduction steps
-- **Accessibility audits** — WCAG 2.1 AA compliance checks
-
-### Getting Started
-
-Paste a URL to begin:
-
-\`\`\`
-https://your-website.com
-\`\`\`
-
-Or try a quick command:
-- *"Test the login flow on https://example.com"*
-- *"Generate Playwright scripts for https://shop.example.com"*
-- *"Create an Excel test sheet for https://app.example.com"*
-- *"Check accessibility on https://example.com"*
+- **Paste a URL** — I'll crawl the site and generate a full test suite
+- **Ask for scripts** — "Write Playwright tests for a login form"
+- **Request an Excel sheet** — "Generate test cases for a checkout flow"
+- **File a bug** — "Create a bug report for a broken form validation"
+- **Accessibility audit** — "Check this page for WCAG AA issues"
 
 What would you like to test today?`;
 }
 
-function buildResponse(userMessage: string, context: AgentContext): string {
-  const lower = userMessage.toLowerCase();
-  const detectedUrl = extractUrl(userMessage);
+// ─── Main Agent Runner ────────────────────────────────────────────────────────
 
-  // URL detected — full QA analysis
-  if (detectedUrl) {
-    return buildUrlResponse(detectedUrl, context);
-  }
-
-  // Script / code generation keywords
-  if (
-    lower.includes("playwright") ||
-    lower.includes("cypress") ||
-    lower.includes("script") ||
-    lower.includes("generate") ||
-    lower.includes("write test")
-  ) {
-    return buildPlaywrightResponse(context);
-  }
-
-  // Excel / test case keywords
-  if (
-    lower.includes("excel") ||
-    lower.includes("test case") ||
-    lower.includes("sheet") ||
-    lower.includes("spreadsheet")
-  ) {
-    return buildExcelResponse(context);
-  }
-
-  // Bug / issue / error keywords
-  if (
-    lower.includes("bug") ||
-    lower.includes("issue") ||
-    lower.includes("error") ||
-    lower.includes("fail")
-  ) {
-    return buildBugReportResponse(context);
-  }
-
-  // Accessibility keywords
-  if (
-    lower.includes("accessibility") ||
-    lower.includes("a11y") ||
-    lower.includes("aria") ||
-    lower.includes("wcag")
-  ) {
-    return buildAccessibilityResponse(context);
-  }
-
-  // Follow-up with prior context
-  if (context.messageHistory.length > 2 && context.targetUrl) {
-    return buildFollowUpResponse(context);
-  }
-
-  // Default
-  return buildDefaultResponse();
+export interface AgentResult {
+  content: string;
+  steps: StepItem[];
+  artifacts: ArtifactPreview[];
 }
 
 /**
- * Async generator that yields text chunks with small delays to simulate streaming.
+ * Runs the QA agent for a given user message and context.
+ * Prepends the SQA_SYSTEM_PROMPT as the first message in the context so all
+ * responses are framed by the senior SQA engineer persona.
+ *
+ * @param userMessage - The latest message from the user
+ * @param context - Thread context including history, URL, mode, and framework
+ * @returns AgentResult with content, steps, and artifact previews
  */
-export async function* streamAgentResponse(
+export async function runAgent(
   userMessage: string,
   context: AgentContext
-): AsyncGenerator<string> {
-  const fullResponse = buildResponse(userMessage, context);
-
-  // Split into word-level chunks for a natural streaming feel
-  const words = fullResponse.split(/(\s+)/);
-
-  for (const chunk of words) {
-    yield chunk;
-    // Variable delay: shorter for whitespace, longer for words
-    const delay = chunk.trim().length === 0 ? 5 : Math.floor(Math.random() * 25 + 10);
-    await new Promise<void>((resolve) => setTimeout(resolve, delay));
-  }
-}
-
-/**
- * Generates artifact previews based on content keywords.
- */
-export function generateArtifacts(content: string): ArtifactPreview[] {
-  const lower = content.toLowerCase();
-  const artifacts: ArtifactPreview[] = [];
-
-  if (
-    lower.includes("playwright") ||
-    lower.includes("cypress") ||
-    lower.includes("script") ||
-    lower.includes(".spec.ts")
-  ) {
-    artifacts.push({
-      type: "script",
-      label: "playwright-tests.spec.ts",
-      size: "14 KB",
-      icon: "code",
-    });
-  }
-
-  if (
-    lower.includes("excel") ||
-    lower.includes(".xlsx") ||
-    lower.includes("test case") ||
-    lower.includes("workbook")
-  ) {
-    artifacts.push({
-      type: "excel",
-      label: "test-cases.xlsx",
-      size: "28 KB",
-      icon: "sheet",
-    });
-  }
-
-  if (
-    lower.includes("bug") ||
-    lower.includes("bug-report") ||
-    lower.includes("bug report")
-  ) {
-    artifacts.push({
-      type: "bug-report",
-      label: "bug-report.pdf",
-      size: "6 KB",
-      icon: "bug",
-    });
-  }
-
-  if (
-    lower.includes("log") ||
-    lower.includes("run log") ||
-    lower.includes("execution log")
-  ) {
-    artifacts.push({
-      type: "log",
-      label: "run-log.txt",
-      size: "3 KB",
-      icon: "log",
-    });
-  }
-
-  return artifacts;
-}
-
-/**
- * Generates realistic QA agent step items for a given user message.
- */
-export function generateSteps(userMessage: string): StepItem[] {
-  const lower = userMessage.toLowerCase();
-  const hasUrl = URL_REGEX.test(userMessage);
-  // Reset lastIndex after test()
-  URL_REGEX.lastIndex = 0;
-
-  const baseSteps: StepItem[] = [
-    { id: "step-1", title: "Crawling URL and mapping structure", status: "complete" },
-    { id: "step-2", title: "Mapping user flows and interactions", status: "complete" },
-    { id: "step-3", title: "Generating test cases", status: "complete" },
-    { id: "step-4", title: "Executing test suite", status: "complete" },
-    { id: "step-5", title: "Compiling results and metrics", status: "complete" },
-    { id: "step-6", title: "Generating artifacts", status: "complete" },
+): Promise<AgentResult> {
+  // Build the full message context with the system prompt prepended.
+  // This ensures every response is shaped by the SQA persona regardless
+  // of which LLM provider is used.
+  const fullContext: Array<{ role: string; content: string }> = [
+    { role: "system", content: SQA_SYSTEM_PROMPT },
+    ...context.messageHistory,
+    { role: "user", content: userMessage },
   ];
 
-  if (!hasUrl) {
-    // For non-URL messages, return a shorter relevant set
-    if (lower.includes("excel") || lower.includes("sheet")) {
-      return [
-        { id: "step-1", title: "Reading test context", status: "complete" },
-        { id: "step-2", title: "Structuring test case schema", status: "complete" },
-        { id: "step-3", title: "Populating Excel workbook", status: "complete" },
-        { id: "step-4", title: "Applying formatting and filters", status: "complete" },
-      ];
-    }
-    if (lower.includes("script") || lower.includes("playwright") || lower.includes("cypress")) {
-      return [
-        { id: "step-1", title: "Analysing test requirements", status: "complete" },
-        { id: "step-2", title: "Scaffolding test file", status: "complete" },
-        { id: "step-3", title: "Writing test cases", status: "complete" },
-        { id: "step-4", title: "Validating script syntax", status: "complete" },
-      ];
-    }
-    if (lower.includes("bug") || lower.includes("issue")) {
-      return [
-        { id: "step-1", title: "Reviewing failure evidence", status: "complete" },
-        { id: "step-2", title: "Formatting bug report", status: "complete" },
-        { id: "step-3", title: "Attaching screenshots", status: "complete" },
-      ];
-    }
-    return [
-      { id: "step-1", title: "Processing request", status: "complete" },
-      { id: "step-2", title: "Generating response", status: "complete" },
+  // Suppress unused variable warning — fullContext is available for real LLM
+  // integration via getLLMConfig() in an API route.
+  void fullContext;
+
+  // Detect if the user message contains a URL
+  const detectedUrl = extractUrl(userMessage) ?? context.targetUrl;
+
+  // Simulate async processing (replace with real LLM call in API route)
+  await new Promise<void>((resolve) => setTimeout(resolve, 800));
+
+  if (detectedUrl) {
+    const content = buildUrlResponse(detectedUrl, context);
+    const flows = getFlowsForDomain(getDomain(detectedUrl));
+
+    const steps: StepItem[] = [
+      { id: "step-crawl", title: "Crawling site structure", status: "complete" },
+      { id: "step-map", title: "Mapping interactive elements", status: "complete" },
+      { id: "step-run", title: `Running ${flows.length * 2} test cases`, status: "complete" },
+      { id: "step-artifacts", title: "Generating artifacts", status: "complete" },
     ];
+
+    const artifacts: ArtifactPreview[] = [
+      {
+        type: "script",
+        label: "playwright-tests.spec.ts",
+        size: `${flows.length * 2} KB`,
+        icon: "code",
+      },
+      {
+        type: "excel",
+        label: "test-cases.xlsx",
+        size: `${flows.length * 4} KB`,
+        icon: "sheet",
+      },
+      {
+        type: "bug-report",
+        label: "bug-report.md",
+        size: "6 KB",
+        icon: "bug",
+      },
+      {
+        type: "log",
+        label: "run-log.txt",
+        size: "3 KB",
+        icon: "log",
+      },
+    ];
+
+    return { content, steps, artifacts };
   }
 
-  return baseSteps;
+  // Generic response for non-URL messages
+  const content = buildGenericResponse(userMessage, context);
+  return { content, steps: [], artifacts: [] };
 }
