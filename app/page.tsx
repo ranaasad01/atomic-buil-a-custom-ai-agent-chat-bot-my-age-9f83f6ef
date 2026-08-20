@@ -111,168 +111,183 @@ export default function HomePage() {
   return (
     <main className="flex flex-col">
       {/* ── Hero ── */}
-      <Reveal className="relative overflow-hidden">
-        <section className="relative min-h-[92vh] flex flex-col items-center justify-center px-4 py-24 text-center">
+      <Reveal>
+        <section className="relative min-h-[92vh] flex items-center overflow-hidden">
           {/* Background glow */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -z-10"
-          >
-            <div className="absolute left-1/2 top-1/3 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--accent)]/8 blur-[120px]" />
-            <div className="absolute right-1/4 bottom-1/4 h-[300px] w-[300px] rounded-full bg-blue-500/5 blur-[80px]" />
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[400px] rounded-full bg-[var(--primary-glow)] blur-[120px] opacity-40" />
+            <div className="absolute bottom-0 right-1/4 w-[400px] h-[300px] rounded-full bg-[var(--accent-glow)] blur-[100px] opacity-30" />
           </div>
 
-          {/* Badge */}
-          <motion.div
-            variants={scaleIn}
-            initial="hidden"
-            animate="visible"
-            className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-[var(--accent)]"
-          >
-            <Zap className="h-3.5 w-3.5" aria-hidden="true" />
-            {t("hero.badge")}
-          </motion.div>
-
-          {/* Headline */}
-          <motion.h1
-            variants={fadeInUp}
-            initial="hidden"
-            animate="visible"
-            transition={{ delay: 0.1 }}
-            className="max-w-4xl text-balance text-5xl font-bold tracking-tight text-[hsl(var(--foreground))] sm:text-6xl lg:text-7xl"
-          >
-            {t("hero.headline1")}{" "}
-            <span className="text-[var(--accent)]">{t("hero.headlineAccent")}</span>{" "}
-            {t("hero.headline2")}
-          </motion.h1>
-
-          {/* Subhead */}
-          <motion.p
-            variants={fadeInUp}
-            initial="hidden"
-            animate="visible"
-            transition={{ delay: 0.2 }}
-            className="mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-[hsl(var(--muted-foreground))]"
-          >
-            {t("hero.subhead")}
-          </motion.p>
-
-          {/* CTAs */}
-          <motion.div
-            variants={fadeInUp}
-            initial="hidden"
-            animate="visible"
-            transition={{ delay: 0.3 }}
-            className="mt-10 flex flex-wrap items-center justify-center gap-4"
-          >
-            <Link
-              href="/"
-              className="group inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-7 py-3.5 text-sm font-semibold text-black transition-all duration-300 hover:brightness-110 hover:shadow-[0_0_24px_rgba(var(--accent-rgb),0.4)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 grid lg:grid-cols-2 gap-16 items-center">
+            {/* Left: copy */}
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              animate="visible"
+              className="flex flex-col gap-6"
             >
-              <Play className="h-4 w-4" aria-hidden="true" />
-              {t("hero.cta.primary")}
-              <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" aria-hidden="true" />
-            </Link>
-            <Link
-              href="/history"
-              className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-7 py-3.5 text-sm font-semibold text-[hsl(var(--foreground))] transition-all duration-300 hover:border-[var(--accent)]/50 hover:bg-[hsl(var(--card))]/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-            >
-              {t("hero.cta.secondary")}
-            </Link>
-          </motion.div>
+              <motion.div variants={fadeInUp}>
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 tracking-wide">
+                  <Zap className="w-3 h-3" />
+                  AI-Powered QA Automation
+                </span>
+              </motion.div>
 
-          {/* Framework pills */}
-          <motion.div
-            variants={staggerContainer}
-            initial="hidden"
-            animate="visible"
-            className="mt-14 flex flex-wrap items-center justify-center gap-3"
-          >
-            {FRAMEWORKS.map((fw) => (
-              <motion.span
-                key={fw.name}
-                variants={scaleIn}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1 text-xs font-medium",
-                  fw.color
-                )}
+              <motion.h1
+                variants={fadeInUp}
+                className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-balance leading-[1.1]"
               >
-                <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                {fw.name}
-                <span className="opacity-60">· {fw.tag}</span>
-              </motion.span>
-            ))}
-          </motion.div>
+                Test any website{" "}
+                <span className="gradient-text">end-to-end</span>{" "}
+                in minutes
+              </motion.h1>
+
+              <motion.p
+                variants={fadeInUp}
+                className="text-lg text-[var(--muted-foreground)] leading-relaxed max-w-xl text-pretty"
+              >
+                Paste a URL, describe what to test, and let the AI agent crawl, script, and execute. Get Playwright scripts, Excel test sheets, and bug reports delivered in a single conversation.
+              </motion.p>
+
+              <motion.div variants={fadeInUp} className="flex flex-wrap gap-3 pt-2">
+                <Link
+                  href="/home-chat-interface"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[var(--primary)] text-white font-semibold text-sm hover:bg-[var(--primary)]/90 transition-all duration-300 glow-primary shadow-[0_1px_2px_rgba(0,0,0,0.2),0_8px_24px_-8px_rgba(99,102,241,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                >
+                  <Play className="w-4 h-4" />
+                  Start Testing Free
+                </Link>
+                <a
+                  href="#how-it-works"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-[var(--border)] text-[var(--foreground)] font-semibold text-sm hover:bg-white/5 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                >
+                  See how it works
+                  <ArrowRight className="w-4 h-4" />
+                </a>
+              </motion.div>
+
+              <motion.div variants={fadeInUp} className="flex flex-wrap items-center gap-4 pt-1">
+                {["No credit card required", "Free tier available", "Works on any live URL"].map((item) => (
+                  <span key={item} className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[var(--accent)]" />
+                    {item}
+                  </span>
+                ))}
+              </motion.div>
+            </motion.div>
+
+            {/* Right: mock terminal */}
+            <motion.div
+              variants={scaleIn}
+              initial="hidden"
+              animate="visible"
+              className="hidden lg:block"
+            >
+              <div className="gradient-border card-shadow rounded-2xl overflow-hidden">
+                {/* Terminal header */}
+                <div className="flex items-center gap-2 px-4 py-3 bg-[var(--card)] border-b border-[var(--border)]">
+                  <span className="w-3 h-3 rounded-full bg-[var(--destructive)] opacity-80" />
+                  <span className="w-3 h-3 rounded-full bg-[var(--warning)] opacity-80" />
+                  <span className="w-3 h-3 rounded-full bg-[var(--success)] opacity-80" />
+                  <span className="ml-3 text-xs text-[var(--muted-foreground)] font-mono">qa-agent — session #42</span>
+                </div>
+                {/* Terminal body */}
+                <div className="bg-[#0d1117] p-5 font-mono text-xs leading-relaxed min-h-[320px] space-y-2">
+                  <p className="text-[var(--muted-foreground)]">$ qa-agent start --url https://demo.shop.com</p>
+                  <p className="text-[var(--accent)]">✓ Crawling site structure...</p>
+                  <p className="text-[var(--muted-foreground)] pl-2">Found 14 pages, 6 forms, 3 API endpoints</p>
+                  <p className="text-[var(--accent)]">✓ Mapping test surface...</p>
+                  <p className="text-[var(--muted-foreground)] pl-2">Identified: auth, cart, checkout, search</p>
+                  <p className="text-[var(--accent)]">✓ Running 12 test cases...</p>
+                  <p className="text-green-400 pl-2">PASS  login-flow.spec.ts (1.2s)</p>
+                  <p className="text-green-400 pl-2">PASS  add-to-cart.spec.ts (0.8s)</p>
+                  <p className="text-[var(--destructive)] pl-2">FAIL  checkout-email-validation.spec.ts</p>
+                  <p className="text-[var(--accent)]">✓ Generating artifacts...</p>
+                  <p className="text-green-400">playwright-tests.spec.ts  14 KB</p>
+                  <p className="text-green-400">test-cases.xlsx           28 KB</p>
+                  <p className="text-green-400">bug-report.pdf             6 KB</p>
+                  <p className="text-[var(--muted-foreground)] mt-3">Session complete. 10 passed, 1 failed, 1 skipped.<span className="streaming-cursor" /></p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         </section>
       </Reveal>
 
       {/* ── Stats bar ── */}
       <Reveal>
-        <section
-          id="stats"
-          className="border-y border-[hsl(var(--border))] bg-[hsl(var(--card))]"
-        >
-          <div className="mx-auto grid max-w-5xl grid-cols-2 divide-x divide-y divide-[hsl(var(--border))] sm:grid-cols-4 sm:divide-y-0">
-            {STATS.map((s) => (
-              <div key={s.label} className="flex flex-col items-center px-8 py-10 text-center">
-                <span className="text-4xl font-bold text-[var(--accent)]">{s.value}</span>
-                <span className="mt-1.5 text-sm text-[hsl(var(--muted-foreground))]">{s.label}</span>
-              </div>
-            ))}
+        <section className="border-y border-[var(--border)] bg-[var(--card)]/40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              className="grid grid-cols-2 md:grid-cols-4 gap-8"
+            >
+              {STATS.map((stat) => (
+                <motion.div key={stat.label} variants={fadeInUp} className="text-center">
+                  <p className="text-3xl font-bold gradient-text">{stat.value}</p>
+                  <p className="text-sm text-[var(--muted-foreground)] mt-1">{stat.label}</p>
+                </motion.div>
+              ))}
+            </motion.div>
           </div>
         </section>
       </Reveal>
 
       {/* ── Capabilities ── */}
       <Reveal>
-        <section id="features" className="bg-[hsl(var(--background))] px-4 py-24 md:py-32">
-          <div className="mx-auto max-w-6xl">
-            <div className="mb-16 text-center">
-              <span className="mb-3 inline-block rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-[var(--accent)]">
-                {t("features.eyebrow")}
+        <section id="features" className="py-24 md:py-32">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 mb-4 tracking-wide">
+                Capabilities
               </span>
-              <h2 className="mt-3 text-balance text-4xl font-bold tracking-tight text-[hsl(var(--foreground))] sm:text-5xl">
-                {t("features.heading")}
+              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance">
+                Everything your QA team needs
               </h2>
-              <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-relaxed text-[hsl(var(--muted-foreground))]">
-                {t("features.subhead")}
+              <p className="mt-4 text-[var(--muted-foreground)] max-w-2xl mx-auto leading-relaxed">
+                One agent. Every artifact. From raw URL to production-ready test suite.
               </p>
             </div>
 
+            {/* Bento grid */}
             <motion.div
               variants={staggerContainer}
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
-              className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
+              className="grid grid-cols-1 md:grid-cols-3 gap-4"
             >
               {CAPABILITIES.map((cap, i) => {
                 const Icon = cap.icon;
+                const isLarge = i === 0;
                 return (
                   <motion.div
                     key={cap.title}
                     variants={fadeInUp}
-                    whileHover={{ y: -4, transition: { duration: 0.2 } }}
                     className={cn(
-                      "group relative rounded-2xl border p-6 transition-all duration-300",
-                      "shadow-[0_1px_2px_rgba(0,0,0,0.08),0_8px_24px_-8px_rgba(0,0,0,0.18)]",
-                      cap.accent
-                        ? "border-[var(--accent)]/40 bg-[var(--accent)]/5 hover:border-[var(--accent)]/70"
-                        : "border-[hsl(var(--border))] bg-[hsl(var(--card))] hover:border-[var(--accent)]/30"
+                      "relative rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 flex flex-col gap-4 card-shadow transition-all duration-300 hover:border-[var(--primary)]/40 hover:-translate-y-0.5",
+                      isLarge && "md:col-span-2 md:row-span-1"
                     )}
                   >
-                    <div
-                      className={cn(
-                        "mb-4 inline-flex h-11 w-11 items-center justify-center rounded-xl",
-                        cap.accent
-                          ? "bg-[var(--accent)] text-black"
-                          : "bg-[var(--accent)]/10 text-[var(--accent)]"
-                      )}
-                    >
-                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    {cap.accent && (
+                      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[var(--primary)]/5 to-[var(--accent)]/5 pointer-events-none" />
+                    )}
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center",
+                      cap.accent
+                        ? "bg-[var(--primary)]/15 text-[var(--primary)]"
+                        : "bg-[var(--border)]/60 text-[var(--muted-foreground)]"
+                    )}>
+                      <Icon className="w-5 h-5" />
                     </div>
-                    <h3 className="text-base font-semibold text-[hsl(var(--foreground))]">{cap.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">{cap.desc}</p>
+                    <div>
+                      <h3 className="font-semibold text-[var(--foreground)] mb-1">{cap.title}</h3>
+                      <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{cap.desc}</p>
+                    </div>
                   </motion.div>
                 );
               })}
@@ -283,161 +298,63 @@ export default function HomePage() {
 
       {/* ── How it works ── */}
       <Reveal>
-        <section
-          id="how-it-works"
-          className="bg-[hsl(var(--card))] px-4 py-24 md:py-32"
-        >
-          <div className="mx-auto max-w-5xl">
-            <div className="mb-16 text-center">
-              <span className="mb-3 inline-block rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-[var(--accent)]">
-                {t("howItWorks.eyebrow")}
+        <section id="how-it-works" className="py-24 md:py-32 bg-[var(--card)]/30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 mb-4 tracking-wide">
+                How it works
               </span>
-              <h2 className="mt-3 text-balance text-4xl font-bold tracking-tight text-[hsl(var(--foreground))] sm:text-5xl">
-                {t("howItWorks.heading")}
+              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-[var(--foreground)]">
+                From URL to test suite in 4 steps
               </h2>
-              <p className="mx-auto mt-4 max-w-xl text-pretty text-base leading-relaxed text-[hsl(var(--muted-foreground))]">
-                {t("howItWorks.subhead")}
+              <p className="mt-4 text-[var(--muted-foreground)] max-w-xl mx-auto leading-relaxed">
+                No configuration files. No boilerplate. Just describe what you need.
               </p>
             </div>
 
-            <div className="relative">
-              {/* Connector line */}
-              <div
-                aria-hidden="true"
-                className="absolute left-[28px] top-10 hidden h-[calc(100%-80px)] w-px bg-gradient-to-b from-[var(--accent)]/60 via-[var(--accent)]/20 to-transparent md:block"
-              />
-
-              <div className="flex flex-col gap-10">
-                {HOW_IT_WORKS.map((step, i) => (
-                  <Reveal key={step.step} delay={i * 0.1}>
-                    <div className="flex items-start gap-6">
-                      <div className="relative flex-shrink-0">
-                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--accent)]/40 bg-[var(--accent)]/10 text-lg font-bold text-[var(--accent)]">
-                          {step.step}
-                        </div>
-                      </div>
-                      <div className="pt-2">
-                        <h3 className="text-lg font-semibold text-[hsl(var(--foreground))]">{step.title}</h3>
-                        <p className="mt-1.5 max-w-lg text-sm leading-relaxed text-[hsl(var(--muted-foreground))]">{step.desc}</p>
-                      </div>
-                    </div>
-                  </Reveal>
-                ))}
-              </div>
-            </div>
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-80px" }}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+            >
+              {HOW_IT_WORKS.map((step) => (
+                <motion.div
+                  key={step.step}
+                  variants={fadeInUp}
+                  className="relative flex flex-col gap-4 p-6 rounded-2xl border border-[var(--border)] bg-[var(--card)] card-shadow"
+                >
+                  <span className="text-4xl font-black text-[var(--primary)]/20 leading-none">{step.step}</span>
+                  <h3 className="font-semibold text-[var(--foreground)]">{step.title}</h3>
+                  <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">{step.desc}</p>
+                </motion.div>
+              ))}
+            </motion.div>
           </div>
         </section>
       </Reveal>
 
-      {/* ── Chat preview / product demo ── */}
+      {/* ── Frameworks ── */}
       <Reveal>
-        <section
-          id="demo"
-          className="bg-[hsl(var(--background))] px-4 py-24 md:py-32"
-        >
-          <div className="mx-auto max-w-6xl">
-            <div className="grid grid-cols-1 items-center gap-16 lg:grid-cols-2">
-              {/* Copy */}
-              <div>
-                <span className="mb-3 inline-block rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-[var(--accent)]">
-                  {t("demo.eyebrow")}
-                </span>
-                <h2 className="mt-3 text-balance text-4xl font-bold tracking-tight text-[hsl(var(--foreground))] sm:text-5xl">
-                  {t("demo.heading")}
-                </h2>
-                <p className="mt-5 text-pretty text-base leading-relaxed text-[hsl(var(--muted-foreground))]">
-                  {t("demo.body")}
-                </p>
-                <ul className="mt-8 space-y-3">
-                  {[
-                    t("demo.bullet1"),
-                    t("demo.bullet2"),
-                    t("demo.bullet3"),
-                  ].map((b) => (
-                    <li key={b} className="flex items-start gap-3 text-sm text-[hsl(var(--foreground))]">
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--accent)]" aria-hidden="true" />
-                      {b}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href="/"
-                  className="group mt-10 inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-black transition-all duration-300 hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        <section className="py-16 border-y border-[var(--border)]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <p className="text-center text-xs font-semibold tracking-widest text-[var(--muted-foreground)] uppercase mb-8">
+              Outputs supported
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              {FRAMEWORKS.map((fw) => (
+                <span
+                  key={fw.name}
+                  className={cn(
+                    "inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium",
+                    fw.color
+                  )}
                 >
-                  {t("demo.cta")}
-                  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" aria-hidden="true" />
-                </Link>
-              </div>
-
-              {/* Mock chat UI */}
-              <div className="relative">
-                <div
-                  aria-hidden="true"
-                  className="absolute -inset-4 rounded-3xl bg-[var(--accent)]/5 blur-2xl"
-                />
-                <div className="relative rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] shadow-[0_2px_4px_rgba(0,0,0,0.08),0_16px_48px_-12px_rgba(0,0,0,0.28)] overflow-hidden">
-                  {/* Title bar */}
-                  <div className="flex items-center gap-2 border-b border-[hsl(var(--border))] bg-[hsl(var(--background))]/60 px-4 py-3">
-                    <div className="h-2.5 w-2.5 rounded-full bg-red-400/70" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-yellow-400/70" />
-                    <div className="h-2.5 w-2.5 rounded-full bg-green-400/70" />
-                    <span className="ml-3 text-xs text-[hsl(var(--muted-foreground))]">QA Agent AI — Chat</span>
-                  </div>
-                  {/* Messages */}
-                  <div className="flex flex-col gap-4 p-5">
-                    {/* User message */}
-                    <div className="flex justify-end">
-                      <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-[var(--accent)] px-4 py-2.5 text-xs font-medium text-black">
-                        Test the checkout flow on https://shop.example.com and generate a Playwright script + Excel test cases.
-                      </div>
-                    </div>
-                    {/* Agent thinking */}
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/20 text-[var(--accent)]">
-                        <Zap className="h-3.5 w-3.5" aria-hidden="true" />
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        <div className="rounded-2xl rounded-tl-sm border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-xs text-[hsl(var(--foreground))]">
-                          Crawling shop.example.com... Found 14 routes. Mapping checkout flow.
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-[hsl(var(--muted-foreground))]">
-                          <Clock className="h-3 w-3" aria-hidden="true" />
-                          Generating Playwright script...
-                        </div>
-                      </div>
-                    </div>
-                    {/* Agent result */}
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/20 text-[var(--accent)]">
-                        <Zap className="h-3.5 w-3.5" aria-hidden="true" />
-                      </div>
-                      <div className="rounded-2xl rounded-tl-sm border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-4 py-2.5 text-xs text-[hsl(var(--foreground))]">
-                        Done. 23 test cases written, 2 bugs found. Your Playwright script and Excel sheet are ready to download.
-                      </div>
-                    </div>
-                    {/* Artifact pills */}
-                    <div className="flex flex-wrap gap-2 pl-10">
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-1 text-xs font-medium text-[var(--accent)]">
-                        <Code2 className="h-3 w-3" aria-hidden="true" /> checkout.spec.ts
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-xs font-medium text-blue-400">
-                        <FileSpreadsheet className="h-3 w-3" aria-hidden="true" /> test-cases.xlsx
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-400">
-                        <Bug className="h-3 w-3" aria-hidden="true" /> 2 bugs
-                      </span>
-                    </div>
-                  </div>
-                  {/* Input bar */}
-                  <div className="border-t border-[hsl(var(--border))] bg-[hsl(var(--background))]/60 px-4 py-3">
-                    <div className="flex items-center gap-3 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-2.5">
-                      <Globe className="h-4 w-4 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
-                      <span className="flex-1 text-xs text-[hsl(var(--muted-foreground))]">Paste a URL or describe what to test...</span>
-                      <ArrowRight className="h-4 w-4 text-[var(--accent)]" aria-hidden="true" />
-                    </div>
-                  </div>
-                </div>
-              </div>
+                  {fw.name}
+                  <span className="opacity-60 text-xs">{fw.tag}</span>
+                </span>
+              ))}
             </div>
           </div>
         </section>
@@ -445,17 +362,14 @@ export default function HomePage() {
 
       {/* ── Testimonials ── */}
       <Reveal>
-        <section
-          id="testimonials"
-          className="bg-[hsl(var(--card))] px-4 py-24 md:py-32"
-        >
-          <div className="mx-auto max-w-6xl">
-            <div className="mb-16 text-center">
-              <span className="mb-3 inline-block rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-[var(--accent)]">
-                {t("testimonials.eyebrow")}
+        <section id="testimonials" className="py-24 md:py-32">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 mb-4 tracking-wide">
+                Testimonials
               </span>
-              <h2 className="mt-3 text-balance text-4xl font-bold tracking-tight text-[hsl(var(--foreground))] sm:text-5xl">
-                {t("testimonials.heading")}
+              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance">
+                Loved by QA teams worldwide
               </h2>
             </div>
 
@@ -464,30 +378,25 @@ export default function HomePage() {
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: "-80px" }}
-              className="grid grid-cols-1 gap-6 md:grid-cols-3"
+              className="grid grid-cols-1 md:grid-cols-3 gap-6"
             >
-              {TESTIMONIALS.map((t_item, i) => (
+              {TESTIMONIALS.map((t) => (
                 <motion.div
-                  key={t_item.author}
+                  key={t.author}
                   variants={fadeInUp}
-                  className="flex flex-col rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] p-6 shadow-[0_1px_2px_rgba(0,0,0,0.06),0_8px_24px_-8px_rgba(0,0,0,0.14)]"
+                  className="flex flex-col gap-4 p-6 rounded-2xl border border-[var(--border)] bg-[var(--card)] card-shadow"
                 >
-                  <div className="mb-4 flex gap-1">
-                    {Array.from({ length: t_item.stars }).map((_, si) => (
-                      <Star key={si} className="h-4 w-4 fill-[var(--accent)] text-[var(--accent)]" aria-hidden="true" />
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: t.stars }).map((_, i) => (
+                      <Star key={i} className="w-4 h-4 fill-[var(--accent)] text-[var(--accent)]" />
                     ))}
                   </div>
-                  <p className="flex-1 text-sm leading-relaxed text-[hsl(var(--foreground))]">
-                    &ldquo;{t_item.quote}&rdquo;
+                  <p className="text-sm text-[var(--muted-foreground)] leading-relaxed flex-1">
+                    &ldquo;{t.quote}&rdquo;
                   </p>
-                  <div className="mt-6 flex items-center gap-3 border-t border-[hsl(var(--border))] pt-4">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent)]/20 text-sm font-bold text-[var(--accent)]">
-                      {t_item.author.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-[hsl(var(--foreground))]">{t_item.author}</div>
-                      <div className="text-xs text-[hsl(var(--muted-foreground))]">{t_item.role}</div>
-                    </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--foreground)]">{t.author}</p>
+                    <p className="text-xs text-[var(--muted-foreground)]">{t.role}</p>
                   </div>
                 </motion.div>
               ))}
@@ -496,48 +405,51 @@ export default function HomePage() {
         </section>
       </Reveal>
 
-      {/* ── CTA ── */}
+      {/* ── Bottom CTA ── */}
       <Reveal>
-        <section
-          id="cta"
-          className="relative overflow-hidden bg-[hsl(var(--background))] px-4 py-24 md:py-32"
-        >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -z-10"
-          >
-            <div className="absolute left-1/2 top-1/2 h-[500px] w-[700px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--accent)]/6 blur-[100px]" />
-          </div>
-          <div className="mx-auto max-w-3xl text-center">
-            <div className="mb-5 inline-flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--accent)]/30 bg-[var(--accent)]/10">
-              <MessageSquare className="h-8 w-8 text-[var(--accent)]" aria-hidden="true" />
-            </div>
-            <h2 className="text-balance text-4xl font-bold tracking-tight text-[hsl(var(--foreground))] sm:text-5xl">
-              {t("cta.heading")}
-            </h2>
-            <p className="mx-auto mt-5 max-w-xl text-pretty text-base leading-relaxed text-[hsl(var(--muted-foreground))]">
-              {t("cta.body")}
-            </p>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              <Link
-                href="/"
-                className="group inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-8 py-4 text-sm font-semibold text-black transition-all duration-300 hover:brightness-110 hover:shadow-[0_0_32px_rgba(var(--accent-rgb),0.35)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-              >
-                <Play className="h-4 w-4" aria-hidden="true" />
-                {t("cta.button")}
-                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" aria-hidden="true" />
-              </Link>
-              <Link
-                href="/history"
-                className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-8 py-4 text-sm font-semibold text-[hsl(var(--foreground))] transition-all duration-300 hover:border-[var(--accent)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-              >
-                <Layers className="h-4 w-4" aria-hidden="true" />
-                {t("cta.secondary")}
-              </Link>
-            </div>
-            <p className="mt-6 text-xs text-[hsl(var(--muted-foreground))]">
-              {t("cta.footnote")}
-            </p>
+        <section className="py-24 md:py-32 bg-[var(--card)]/40 border-t border-[var(--border)]">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <motion.div
+              variants={staggerContainer}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true }}
+              className="flex flex-col items-center gap-6"
+            >
+              <motion.div variants={fadeInUp}>
+                <div className="w-14 h-14 rounded-2xl bg-[var(--primary)]/15 flex items-center justify-center mx-auto mb-4 glow-primary">
+                  <Zap className="w-7 h-7 text-[var(--primary)]" />
+                </div>
+                <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-balance text-[var(--foreground)]">
+                  Ready to automate your QA?
+                </h2>
+              </motion.div>
+
+              <motion.p variants={fadeInUp} className="text-[var(--muted-foreground)] leading-relaxed max-w-xl">
+                Join teams shipping with confidence. Paste your first URL and have a full test suite ready before your next standup.
+              </motion.p>
+
+              <motion.div variants={fadeInUp} className="flex flex-wrap justify-center gap-3">
+                <Link
+                  href="/home-chat-interface"
+                  className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-[var(--primary)] text-white font-semibold text-sm hover:bg-[var(--primary)]/90 transition-all duration-300 glow-primary shadow-[0_1px_2px_rgba(0,0,0,0.2),0_8px_24px_-8px_rgba(99,102,241,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                >
+                  <Play className="w-4 h-4" />
+                  Start Testing Free
+                </Link>
+                <Link
+                  href="/history"
+                  className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl border border-[var(--border)] text-[var(--foreground)] font-semibold text-sm hover:bg-white/5 transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                >
+                  <Clock className="w-4 h-4" />
+                  View History
+                </Link>
+              </motion.div>
+
+              <motion.p variants={fadeInUp} className="text-xs text-[var(--muted-foreground)]">
+                No credit card required. Free tier available.
+              </motion.p>
+            </motion.div>
           </div>
         </section>
       </Reveal>

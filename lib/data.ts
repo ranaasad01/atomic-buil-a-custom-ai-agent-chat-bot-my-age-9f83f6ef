@@ -78,7 +78,7 @@ export const BRAND: Brand = {
 };
 
 export const navLinks: NavLink[] = [
-  { label: "Chat", href: "/", key: "chat" },
+  { label: "Chat", href: "/home-chat-interface", key: "chat" },
   { label: "History", href: "/history", key: "history" },
 ];
 
