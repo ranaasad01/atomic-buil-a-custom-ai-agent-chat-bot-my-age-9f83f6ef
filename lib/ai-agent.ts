@@ -1,5 +1,8 @@
 import type { ArtifactPreview, StepItem } from "@/lib/chat-store";
 
+// Re-export so consumers can import from here too
+export type { ArtifactPreview, StepItem };
+
 // ─── SQA System Prompt ────────────────────────────────────────────────────────
 // This prompt is stored server-side only and shapes all agent responses.
 // It is never exposed to the client directly.
@@ -389,17 +392,28 @@ export interface AgentResult {
  * Prepends the SQA_SYSTEM_PROMPT as the first message in the context so all
  * responses are framed by the senior SQA engineer persona.
  *
- * @param userMessage - The latest message from the user
- * @param context - Thread context including history, URL, mode, and framework
+ * @param params - Object containing userMessage and AgentContext fields
  * @returns AgentResult with content, steps, and artifact previews
  */
-export async function runAgent(
-  userMessage: string,
-  context: AgentContext
-): Promise<AgentResult> {
+export async function runAgent(params: {
+  userMessage: string;
+  targetUrl?: string;
+  agentMode?: string;
+  framework?: string;
+  outputs?: string[];
+  threadId: string;
+}): Promise<AgentResult> {
+  const { userMessage, targetUrl, agentMode, framework, threadId } = params;
+
+  const context: AgentContext = {
+    threadId,
+    targetUrl,
+    agentMode,
+    framework,
+    messageHistory: [],
+  };
+
   // Build the full message context with the system prompt prepended.
-  // This ensures every response is shaped by the SQA persona regardless
-  // of which LLM provider is used.
   const fullContext: Array<{ role: string; content: string }> = [
     { role: "system", content: SQA_SYSTEM_PROMPT },
     ...context.messageHistory,
@@ -414,50 +428,32 @@ export async function runAgent(
   const detectedUrl = extractUrl(userMessage) ?? context.targetUrl;
 
   // Simulate async processing (replace with real LLM call in API route)
-  await new Promise<void>((resolve) => setTimeout(resolve, 800));
+  await new Promise<void>((resolve) => setTimeout(resolve, 1200));
+
+  const steps: StepItem[] = [
+    { id: "s1", title: "Parsing request", status: "complete" },
+    { id: "s2", title: "Analysing target", status: "complete" },
+    { id: "s3", title: "Generating response", status: "complete" },
+  ];
+
+  let content: string;
+  let artifacts: ArtifactPreview[] = [];
 
   if (detectedUrl) {
-    const content = buildUrlResponse(detectedUrl, context);
-    const flows = getFlowsForDomain(getDomain(detectedUrl));
-
-    const steps: StepItem[] = [
-      { id: "step-crawl", title: "Crawling site structure", status: "complete" },
-      { id: "step-map", title: "Mapping interactive elements", status: "complete" },
-      { id: "step-run", title: `Running ${flows.length * 2} test cases`, status: "complete" },
-      { id: "step-artifacts", title: "Generating artifacts", status: "complete" },
+    content = buildUrlResponse(detectedUrl, context);
+    steps.push(
+      { id: "s4", title: "Crawling URL", status: "complete" },
+      { id: "s5", title: "Running test suite", status: "complete" },
+      { id: "s6", title: "Generating artifacts", status: "complete" }
+    );
+    artifacts = [
+      { type: "script", label: "playwright-tests.spec.ts", size: "14 KB", icon: "code" },
+      { type: "excel", label: "test-cases.xlsx", size: "28 KB", icon: "sheet" },
+      { type: "bug-report", label: "bug-report.md", size: "6 KB", icon: "bug" },
     ];
-
-    const artifacts: ArtifactPreview[] = [
-      {
-        type: "script",
-        label: "playwright-tests.spec.ts",
-        size: `${flows.length * 2} KB`,
-        icon: "code",
-      },
-      {
-        type: "excel",
-        label: "test-cases.xlsx",
-        size: `${flows.length * 4} KB`,
-        icon: "sheet",
-      },
-      {
-        type: "bug-report",
-        label: "bug-report.md",
-        size: "6 KB",
-        icon: "bug",
-      },
-      {
-        type: "log",
-        label: "run-log.txt",
-        size: "3 KB",
-        icon: "log",
-      },
-    ];
-
-    return { content, steps, artifacts };
+  } else {
+    content = buildGenericResponse(userMessage, context);
   }
 
-  // Generic response for non-URL messages
-  const content = buildGenericResponse(userMessage, context);
-  return { content, steps: [], artifacts: [] };
+  return { content, steps, artifacts };
 }

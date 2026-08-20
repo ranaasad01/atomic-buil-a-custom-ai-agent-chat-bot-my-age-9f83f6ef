@@ -447,17 +447,17 @@ function MockSessionCard({ session, isExpanded, onToggle }: MockSessionCardProps
             transition={{ duration: 0.22, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5 border-t border-[var(--border)] pt-4">
+            <div className="px-5 pb-5 border-t border-[var(--border)] pt-4 space-y-4">
               {/* Pass rate bar */}
               {session.total_tests > 0 && (
-                <div className="mb-4">
+                <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs text-[var(--muted-foreground)]">Pass rate</span>
                     <span className="text-xs font-semibold text-[var(--foreground)]">{passRate}%</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
                     <div
-                      className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                      className="h-full bg-emerald-400 rounded-full transition-all"
                       style={{ width: `${passRate}%` }}
                     />
                   </div>
@@ -482,30 +482,46 @@ function MockSessionCard({ session, isExpanded, onToggle }: MockSessionCardProps
                 </div>
               )}
 
+              {/* Output types */}
+              <div className="flex flex-wrap gap-1.5">
+                {session.output_types.map((type) => (
+                  <span
+                    key={type}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-white/5 text-[var(--muted-foreground)] border border-white/10"
+                  >
+                    {type === "script" && <FileCode className="w-2.5 h-2.5" />}
+                    {type === "excel" && <FileText className="w-2.5 h-2.5" />}
+                    {type === "bug-report" && <AlertCircle className="w-2.5 h-2.5" />}
+                    {type === "log" && <Activity className="w-2.5 h-2.5" />}
+                    {type}
+                  </span>
+                ))}
+              </div>
+
               {/* Summary note */}
-              {session.summary && typeof session.summary === "object" && "notes" in session.summary && (
-                <p className="text-xs text-[var(--muted-foreground)] italic mb-3">
-                  {String(session.summary.notes)}
+              {session.summary && "notes" in session.summary && session.summary.notes && (
+                <p className="text-xs text-[var(--muted-foreground)] italic">
+                  {session.summary.notes as string}
                 </p>
               )}
-              {session.summary && typeof session.summary === "object" && "error" in session.summary && (
-                <p className="text-xs text-[var(--destructive)] mb-3">
-                  ⚠ {String(session.summary.error)}
+              {session.summary && "error" in session.summary && session.summary.error && (
+                <p className="text-xs text-[var(--destructive)]">
+                  ⚠ {session.summary.error as string}
                 </p>
               )}
 
               {/* Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 pt-1">
                 <Link
                   href={`/session/${session.id}`}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-colors"
                 >
-                  <Eye className="w-3 h-3" />
+                  <ExternalLink className="w-3 h-3" />
                   View Session
                 </Link>
                 <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-[var(--muted-foreground)] border border-white/10 hover:text-[var(--foreground)] transition-colors">
                   <Download className="w-3 h-3" />
-                  Download
+                  Download All
                 </button>
               </div>
             </div>
@@ -518,9 +534,6 @@ function MockSessionCard({ session, isExpanded, onToggle }: MockSessionCardProps
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type ActiveTab = "threads" | "sessions";
-type SortOrder = "newest" | "oldest";
-
 const STATUS_FILTERS: { value: SessionStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "completed", label: "Completed" },
@@ -532,82 +545,64 @@ const STATUS_FILTERS: { value: SessionStatus | "all"; label: string }[] = [
 export default function HistoryPage() {
   const t = useTranslations();
 
-  // ── Tab state ──
-  const [activeTab, setActiveTab] = useState<ActiveTab>("threads");
-
-  // ── Real threads state ──
+  // Real threads from localStorage
   const [threads, setThreads] = useState<Thread[]>([]);
   const [threadMessageCounts, setThreadMessageCounts] = useState<Record<string, number>>({});
-  const [threadSearch, setThreadSearch] = useState("");
-  const [threadSort, setThreadSort] = useState<SortOrder>("newest");
 
-  // ── Mock sessions state ──
-  const [sessionSearch, setSessionSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<SessionStatus | "all">("all");
+  // Mock session state
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
-  // Load threads on mount
+  // Filters
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<SessionStatus | "all">("all");
+  const [activeTab, setActiveTab] = useState<"threads" | "sessions">("threads");
+
+  // Load real threads
   useEffect(() => {
-    const loaded = getThreads();
-    setThreads(loaded);
+    const stored = getThreads();
+    setThreads(stored);
     const counts: Record<string, number> = {};
-    for (const t of loaded) {
+    stored.forEach((t) => {
       counts[t.id] = getMessages(t.id).length;
-    }
+    });
     setThreadMessageCounts(counts);
   }, []);
 
   const handleDeleteThread = useCallback((id: string) => {
     setThreads((prev) => prev.filter((t) => t.id !== id));
-    setThreadMessageCounts((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
   }, []);
 
-  // Filtered + sorted threads
-  const filteredThreads = useMemo(() => {
-    let result = threads;
-    if (threadSearch.trim()) {
-      const q = threadSearch.toLowerCase();
-      result = result.filter(
-        (t) =>
-          (t.title ?? "").toLowerCase().includes(q) ||
-          (t.targetUrl ?? "").toLowerCase().includes(q)
-      );
-    }
-    return [...result].sort((a, b) => {
-      const aTime = new Date(a.updatedAt).getTime();
-      const bTime = new Date(b.updatedAt).getTime();
-      return threadSort === "newest" ? bTime - aTime : aTime - bTime;
-    });
-  }, [threads, threadSearch, threadSort]);
-
-  // Filtered mock sessions
+  // Filter mock sessions
   const filteredSessions = useMemo(() => {
     return MOCK_SESSIONS.filter((s) => {
       const matchesSearch =
-        sessionSearch.trim() === "" ||
-        s.title.toLowerCase().includes(sessionSearch.toLowerCase()) ||
-        s.target_url.toLowerCase().includes(sessionSearch.toLowerCase());
+        search.trim() === "" ||
+        s.title.toLowerCase().includes(search.toLowerCase()) ||
+        s.target_url.toLowerCase().includes(search.toLowerCase());
       const matchesStatus = statusFilter === "all" || s.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [sessionSearch, statusFilter]);
+  }, [search, statusFilter]);
 
-  // Stats
-  const threadStats = useMemo(() => ({
-    total: threads.length,
-    totalMessages: Object.values(threadMessageCounts).reduce((a, b) => a + b, 0),
-  }), [threads, threadMessageCounts]);
+  // Filter real threads
+  const filteredThreads = useMemo(() => {
+    return threads.filter((t) => {
+      if (search.trim() === "") return true;
+      const title = t.title ?? "";
+      return (
+        title.toLowerCase().includes(search.toLowerCase()) ||
+        (t.targetUrl ?? "").toLowerCase().includes(search.toLowerCase())
+      );
+    });
+  }, [threads, search]);
 
-  const sessionStats = useMemo(() => ({
-    total: MOCK_SESSIONS.length,
-    completed: MOCK_SESSIONS.filter((s) => s.status === "completed").length,
-    totalTests: MOCK_SESSIONS.reduce((a, s) => a + s.total_tests, 0),
-    totalPassed: MOCK_SESSIONS.reduce((a, s) => a + s.pass_count, 0),
-  }), []);
+  // Summary stats
+  const stats = useMemo(() => ({
+    totalSessions: MOCK_SESSIONS.length,
+    completedSessions: MOCK_SESSIONS.filter((s) => s.status === "completed").length,
+    totalThreads: threads.length,
+    totalTests: MOCK_SESSIONS.reduce((acc, s) => acc + s.total_tests, 0),
+  }), [threads.length]);
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
@@ -621,18 +616,18 @@ export default function HistoryPage() {
                   History
                 </p>
                 <h1 className="text-3xl font-bold text-[var(--foreground)] tracking-tight">
-                  Chat &amp; Session History
+                  Test History
                 </h1>
                 <p className="mt-2 text-sm text-[var(--muted-foreground)] max-w-lg">
-                  Browse your chat threads and past QA sessions. Revisit conversations, download artifacts, and track test results.
+                  Browse your chat threads and past test sessions. Review artifacts, results, and session details.
                 </p>
               </div>
               <Link
                 href="/home-chat-interface"
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary)]/90 transition-colors shrink-0"
               >
-                <MessageSquare className="w-4 h-4" />
-                New Chat
+                <Globe className="w-4 h-4" />
+                New Session
               </Link>
             </div>
           </Reveal>
@@ -641,22 +636,18 @@ export default function HistoryPage() {
           <Reveal delay={0.1}>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
               {[
-                { label: "Chat Threads", value: threadStats.total, icon: MessageSquare },
-                { label: "Total Messages", value: threadStats.totalMessages, icon: Activity },
-                { label: "QA Sessions", value: sessionStats.total, icon: Star },
-                { label: "Tests Run", value: sessionStats.totalTests, icon: CheckCircle },
+                { label: "Chat Threads", value: stats.totalThreads, icon: MessageSquare },
+                { label: "Test Sessions", value: stats.totalSessions, icon: Activity },
+                { label: "Completed", value: stats.completedSessions, icon: CheckCircle },
+                { label: "Total Tests", value: stats.totalTests, icon: Star },
               ].map(({ label, value, icon: Icon }) => (
                 <div
                   key={label}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 flex items-center gap-3"
+                  className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 text-center"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center shrink-0">
-                    <Icon className="w-4 h-4 text-[var(--primary)]" />
-                  </div>
-                  <div>
-                    <p className="text-xl font-bold text-[var(--foreground)]">{value}</p>
-                    <p className="text-xs text-[var(--muted-foreground)]">{label}</p>
-                  </div>
+                  <Icon className="w-4 h-4 text-[var(--accent)] mx-auto mb-1" />
+                  <p className="text-2xl font-bold text-[var(--foreground)]">{value}</p>
+                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{label}</p>
                 </div>
               ))}
             </div>
@@ -666,142 +657,121 @@ export default function HistoryPage() {
 
       {/* ── Main content ── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tab switcher */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--card)] border border-[var(--border)] w-fit mb-8">
-          {([
-            { value: "threads" as ActiveTab, label: "Chat Threads" },
-            { value: "sessions" as ActiveTab, label: "QA Sessions" },
-          ]).map((tab) => (
+        {/* Tabs */}
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--card)] border border-[var(--border)] w-fit mb-6">
+          {(["threads", "sessions"] as const).map((tab) => (
             <button
-              key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
+              key={tab}
+              onClick={() => setActiveTab(tab)}
               className={cn(
-                "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200",
-                activeTab === tab.value
+                "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                activeTab === tab
                   ? "bg-[var(--primary)] text-white shadow-sm"
                   : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
               )}
             >
-              {tab.label}
+              {tab === "threads" ? "Chat Threads" : "Mock Sessions"}
             </button>
           ))}
         </div>
 
-        {/* ── Threads tab ── */}
-        {activeTab === "threads" && (
-          <div>
-            {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-6">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
-                <input
-                  type="text"
-                  placeholder="Search threads…"
-                  value={threadSearch}
-                  onChange={(e) => setThreadSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
-                />
-              </div>
-              <select
-                value={threadSort}
-                onChange={(e) => setThreadSort(e.target.value as SortOrder)}
-                className="px-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
-              >
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-              </select>
-            </div>
+        {/* Search + filters */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
+            <input
+              type="text"
+              placeholder={activeTab === "threads" ? "Search threads..." : "Search sessions..."}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)]/60 transition-all"
+            />
+          </div>
 
-            {filteredThreads.length === 0 ? (
-              <div className="text-center py-20">
-                <MessageSquare className="w-12 h-12 text-[var(--muted-foreground)] mx-auto mb-4 opacity-30" />
-                <p className="text-[var(--muted-foreground)] text-sm">
-                  {threads.length === 0
-                    ? "No chat threads yet. Start a new chat to get going!"
-                    : "No threads match your search."}
-                </p>
-                <Link
-                  href="/home-chat-interface"
-                  className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:bg-[var(--primary)]/90 transition-colors"
+          {activeTab === "sessions" && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setStatusFilter(f.value)}
+                  className={cn(
+                    "px-3 py-2 rounded-lg text-xs font-medium border transition-all",
+                    statusFilter === f.value
+                      ? "bg-[var(--primary)] text-white border-[var(--primary)]"
+                      : "bg-[var(--card)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+                  )}
                 >
-                  Start New Chat
-                </Link>
-              </div>
-            ) : (
-              <AnimatePresence mode="popLayout">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredThreads.map((thread) => (
-                    <RealThreadCard
-                      key={thread.id}
-                      thread={thread}
-                      messageCount={threadMessageCounts[thread.id] ?? 0}
-                      onDelete={handleDeleteThread}
-                    />
-                  ))}
-                </div>
-              </AnimatePresence>
-            )}
-          </div>
-        )}
-
-        {/* ── Sessions tab ── */}
-        {activeTab === "sessions" && (
-          <div>
-            {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-6">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
-                <input
-                  type="text"
-                  placeholder="Search sessions…"
-                  value={sessionSearch}
-                  onChange={(e) => setSessionSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40"
-                />
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {STATUS_FILTERS.map((f) => (
-                  <button
-                    key={f.value}
-                    onClick={() => setStatusFilter(f.value)}
-                    className={cn(
-                      "px-3 py-2 rounded-lg text-xs font-medium border transition-colors",
-                      statusFilter === f.value
-                        ? "bg-[var(--primary)] text-white border-[var(--primary)]"
-                        : "bg-[var(--card)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
-                    )}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
+                  {f.label}
+                </button>
+              ))}
             </div>
+          )}
+        </div>
 
-            {filteredSessions.length === 0 ? (
-              <div className="text-center py-20">
-                <Activity className="w-12 h-12 text-[var(--muted-foreground)] mx-auto mb-4 opacity-30" />
-                <p className="text-[var(--muted-foreground)] text-sm">No sessions match your filters.</p>
-              </div>
-            ) : (
-              <AnimatePresence mode="popLayout">
-                <div className="flex flex-col gap-4">
-                  {filteredSessions.map((session) => (
-                    <MockSessionCard
-                      key={session.id}
-                      session={session}
-                      isExpanded={expandedSession === session.id}
-                      onToggle={() =>
-                        setExpandedSession((prev) =>
-                          prev === session.id ? null : session.id
-                        )
-                      }
-                    />
-                  ))}
+        {/* Content */}
+        <AnimatePresence mode="wait">
+          {activeTab === "threads" ? (
+            <motion.div
+              key="threads"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="space-y-3"
+            >
+              {filteredThreads.length === 0 ? (
+                <div className="text-center py-16 text-[var(--muted-foreground)]">
+                  <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No chat threads yet</p>
+                  <p className="text-sm mt-1">Start a new session to see your threads here.</p>
+                  <Link
+                    href="/home-chat-interface"
+                    className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary)]/90 transition-colors"
+                  >
+                    Start chatting
+                  </Link>
                 </div>
-              </AnimatePresence>
-            )}
-          </div>
-        )}
+              ) : (
+                filteredThreads.map((thread) => (
+                  <RealThreadCard
+                    key={thread.id}
+                    thread={thread}
+                    messageCount={threadMessageCounts[thread.id] ?? 0}
+                    onDelete={handleDeleteThread}
+                  />
+                ))
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="sessions"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="space-y-3"
+            >
+              {filteredSessions.length === 0 ? (
+                <div className="text-center py-16 text-[var(--muted-foreground)]">
+                  <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No sessions match your filters</p>
+                  <p className="text-sm mt-1">Try adjusting your search or status filter.</p>
+                </div>
+              ) : (
+                filteredSessions.map((session) => (
+                  <MockSessionCard
+                    key={session.id}
+                    session={session}
+                    isExpanded={expandedSession === session.id}
+                    onToggle={() =>
+                      setExpandedSession((prev) =>
+                        prev === session.id ? null : session.id
+                      )
+                    }
+                  />
+                ))
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
