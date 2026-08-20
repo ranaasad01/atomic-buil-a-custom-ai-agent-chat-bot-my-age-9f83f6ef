@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { motion, AnimatePresence, type Variants } from "framer-motion";
-import { Search, Filter, Calendar, CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronRight, Trash2, Download, Globe, FileCode, FileText, X, Check, Square, Eye, ExternalLink, Activity, Star, MessageSquare } from 'lucide-react';
+import { Search, Filter, Calendar, CheckCircle, XCircle, Clock, AlertCircle, ChevronDown, ChevronRight, Trash2, Download, Globe, FileCode, FileText, X, Check, Square, Eye, ExternalLink, Activity, Star, MessageSquare, User } from 'lucide-react';
 import Link from "next/link";
 import { Reveal } from "@/components/Reveal";
 import { cn } from "@/lib/utils";
@@ -15,6 +15,8 @@ import {
   type Thread,
   type ChatMessage,
 } from "@/lib/chat-store";
+import { useAuth } from "@/lib/supabase/auth-context";
+import { getLongTermSessions, deleteSessionFromDB } from "@/lib/supabase/memory";
 
 type SessionStatus = "completed" | "running" | "error" | "pending";
 type TestFramework = "playwright" | "cypress" | "both";
@@ -140,13 +142,30 @@ const MOCK_SESSIONS: (Session & {
     output_types: ["script", "excel", "bug-report"],
     status: "pending",
     summary: null,
-    created_at: "2025-01-15T11:10:00Z",
-    updated_at: "2025-01-15T11:10:00Z",
+    created_at: "2025-01-15T12:10:00Z",
+    updated_at: "2025-01-15T12:10:00Z",
     pass_count: 0,
     fail_count: 0,
     skip_count: 0,
     total_tests: 0,
     duration_ms: 0,
+  },
+  {
+    id: "sess_08",
+    target_url: "https://atlassian.com",
+    title: "Atlassian Jira Smoke Test",
+    agent_mode: "hybrid",
+    test_framework: "playwright",
+    output_types: ["script", "excel"],
+    status: "completed",
+    summary: null,
+    created_at: "2025-01-10T07:15:00Z",
+    updated_at: "2025-01-10T07:42:00Z",
+    pass_count: 22,
+    fail_count: 0,
+    skip_count: 2,
+    total_tests: 24,
+    duration_ms: 162000,
   },
 ];
 
@@ -155,375 +174,421 @@ const MOCK_SESSIONS: (Session & {
 function formatDuration(ms: number): string {
   if (ms === 0) return "—";
   const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
-  const rem = s % 60;
-  return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
+  if (m === 0) return `${s}s`;
+  return `${m}m ${s % 60}s`;
 }
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 }
 
-const STATUS_CONFIG: Record<
-  SessionStatus,
-  { label: string; icon: React.ReactNode; color: string; bg: string }
-> = {
-  completed: {
-    label: "Completed",
-    icon: <CheckCircle className="w-3.5 h-3.5" />,
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/10 border-emerald-500/20",
-  },
-  running: {
-    label: "Running",
-    icon: <Activity className="w-3.5 h-3.5" />,
-    color: "text-[var(--accent)]",
-    bg: "bg-[var(--accent)]/10 border-[var(--accent)]/20",
-  },
-  error: {
-    label: "Error",
-    icon: <XCircle className="w-3.5 h-3.5" />,
-    color: "text-[var(--destructive)]",
-    bg: "bg-[var(--destructive)]/10 border-[var(--destructive)]/20",
-  },
-  pending: {
-    label: "Pending",
-    icon: <Clock className="w-3.5 h-3.5" />,
-    color: "text-[var(--muted-foreground)]",
-    bg: "bg-white/5 border-white/10",
-  },
-};
+function passRate(pass: number, total: number): number {
+  if (total === 0) return 0;
+  return Math.round((pass / total) * 100);
+}
 
-const FRAMEWORK_COLORS: Record<string, string> = {
-  playwright:
-    "bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/20",
-  cypress: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  both: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-};
+// ─── Status badge ─────────────────────────────────────────────────────────────
 
-const MODE_COLORS: Record<string, string> = {
-  autonomous: "bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/20",
-  hybrid: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  "instruction-driven": "bg-rose-500/10 text-rose-400 border-rose-500/20",
-};
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { icon: React.ReactNode; label: string; cls: string }> = {
+    completed: {
+      icon: <CheckCircle className="w-3.5 h-3.5" />,
+      label: "Completed",
+      cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    },
+    running: {
+      icon: <Clock className="w-3.5 h-3.5 animate-spin" />,
+      label: "Running",
+      cls: "bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/20",
+    },
+    error: {
+      icon: <XCircle className="w-3.5 h-3.5" />,
+      label: "Error",
+      cls: "bg-[var(--destructive)]/10 text-[var(--destructive)] border-[var(--destructive)]/20",
+    },
+    pending: {
+      icon: <AlertCircle className="w-3.5 h-3.5" />,
+      label: "Pending",
+      cls: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    },
+  };
+  const cfg = map[status] ?? map["pending"];
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
+        cfg.cls
+      )}
+    >
+      {cfg.icon}
+      {cfg.label}
+    </span>
+  );
+}
 
-// ─── Real Thread Card ─────────────────────────────────────────────────────────
+// ─── Output type pill ─────────────────────────────────────────────────────────
 
-interface RealThreadCardProps {
+function OutputPill({ type }: { type: string }) {
+  const map: Record<string, { icon: React.ReactNode; label: string }> = {
+    script: { icon: <FileCode className="w-3 h-3" />, label: "Script" },
+    excel: { icon: <FileText className="w-3 h-3" />, label: "Excel" },
+    "bug-report": { icon: <AlertCircle className="w-3 h-3" />, label: "Bug Report" },
+    log: { icon: <Activity className="w-3 h-3" />, label: "Logs" },
+  };
+  const cfg = map[type] ?? { icon: null, label: type };
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-[var(--border)]/40 text-[var(--muted-foreground)] border border-[var(--border)]/60">
+      {cfg.icon}
+      {cfg.label}
+    </span>
+  );
+}
+
+// ─── Pass rate bar ────────────────────────────────────────────────────────────
+
+function PassRateBar({ pass, total }: { pass: number; total: number }) {
+  const rate = passRate(pass, total);
+  const color =
+    rate >= 90 ? "bg-emerald-500" : rate >= 70 ? "bg-amber-500" : "bg-[var(--destructive)]";
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 rounded-full bg-[var(--border)]/60 overflow-hidden">
+        <div
+          className={cn("h-full rounded-full transition-all duration-500", color)}
+          style={{ width: `${rate}%` }}
+        />
+      </div>
+      <span className="text-xs text-[var(--muted-foreground)] tabular-nums w-8 text-right">
+        {total === 0 ? "—" : `${rate}%`}
+      </span>
+    </div>
+  );
+}
+
+// ─── Thread row (from localStorage) ──────────────────────────────────────────
+
+function ThreadRow({
+  thread,
+  onDelete,
+}: {
   thread: Thread;
-  messageCount: number;
   onDelete: (id: string) => void;
-}
-
-function RealThreadCard({ thread, messageCount, onDelete }: RealThreadCardProps) {
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
-  function handleDelete() {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
-    deleteThread(thread.id);
-    onDelete(thread.id);
-  }
+}) {
+  const messages = getMessages(thread.id);
+  const userMessages = messages.filter((m) => m.role === "user");
+  const lastMsg = messages[messages.length - 1];
 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
-      className="group relative rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 hover:border-[var(--primary)]/40 transition-all duration-200 shadow-[0_1px_2px_rgba(0,0,0,0.2),0_4px_16px_-4px_rgba(0,0,0,0.3)]"
+      className="group flex items-start gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--card)]/60 hover:border-[var(--primary)]/40 hover:bg-[var(--card)] transition-all duration-200"
     >
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-[var(--foreground)] text-sm leading-snug truncate">
-            {thread.title ?? "Untitled Thread"}
-          </h3>
-          <div className="flex items-center gap-1.5 mt-1">
-            <Globe className="w-3 h-3 text-[var(--muted-foreground)] shrink-0" />
-            <span className="text-xs text-[var(--muted-foreground)] truncate font-mono">
-              {thread.targetUrl || "No URL set"}
+      <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center">
+        <MessageSquare className="w-4 h-4 text-[var(--primary)]" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-[var(--foreground)] truncate">
+            {thread.title ?? "Untitled session"}
+          </p>
+          <span className="flex-shrink-0 text-xs text-[var(--muted-foreground)]">
+            {formatDate(thread.createdAt)}
+          </span>
+        </div>
+        {thread.targetUrl && (
+          <p className="text-xs text-[var(--accent)] truncate mt-0.5">{thread.targetUrl}</p>
+        )}
+        {lastMsg && (
+          <p className="text-xs text-[var(--muted-foreground)] truncate mt-1 leading-relaxed">
+            {lastMsg.content.slice(0, 120)}
+          </p>
+        )}
+        <div className="flex items-center gap-3 mt-2">
+          <span className="text-xs text-[var(--muted-foreground)]">
+            {userMessages.length} message{userMessages.length !== 1 ? "s" : ""}
+          </span>
+          {thread.framework && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20">
+              {thread.framework}
             </span>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Link
-            href="/home-chat-interface"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-colors"
-          >
-            <Eye className="w-3 h-3" />
-            View
-          </Link>
-          <button
-            onClick={handleDelete}
-            onBlur={() => setConfirmDelete(false)}
-            className={cn(
-              "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors",
-              confirmDelete
-                ? "bg-[var(--destructive)]/20 text-[var(--destructive)] border-[var(--destructive)]/30 hover:bg-[var(--destructive)]/30"
-                : "bg-white/5 text-[var(--muted-foreground)] border-white/10 hover:text-[var(--destructive)] hover:border-[var(--destructive)]/30"
-            )}
-            title={confirmDelete ? "Click again to confirm" : "Delete thread"}
-          >
-            <Trash2 className="w-3 h-3" />
-            {confirmDelete ? "Confirm" : "Delete"}
-          </button>
+          )}
         </div>
       </div>
-
-      {/* Badges row */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        {thread.agentMode && (
-          <span
-            className={cn(
-              "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border",
-              MODE_COLORS[thread.agentMode] ?? "bg-white/5 text-[var(--muted-foreground)] border-white/10"
-            )}
-          >
-            {thread.agentMode}
-          </span>
-        )}
-        {thread.framework && (
-          <span
-            className={cn(
-              "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border",
-              FRAMEWORK_COLORS[thread.framework] ?? "bg-white/5 text-[var(--muted-foreground)] border-white/10"
-            )}
-          >
-            {thread.framework}
-          </span>
-        )}
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-white/5 text-[var(--muted-foreground)] border-white/10">
-          <MessageSquare className="w-2.5 h-2.5" />
-          {messageCount} {messageCount === 1 ? "message" : "messages"}
-        </span>
-      </div>
-
-      {/* Footer timestamps */}
-      <div className="flex items-center gap-3 text-[10px] text-[var(--muted-foreground)]">
-        <span className="flex items-center gap-1">
-          <Calendar className="w-3 h-3" />
-          Created {formatDate(thread.createdAt)}
-        </span>
-        <span className="text-[var(--border)]">·</span>
-        <span>Updated {formatDate(thread.updatedAt)}</span>
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Link
+          href={`/session/${thread.id}`}
+          className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5 transition-colors"
+          title="View session"
+        >
+          <Eye className="w-4 h-4" />
+        </Link>
+        <button
+          onClick={() => onDelete(thread.id)}
+          className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--destructive)] hover:bg-[var(--destructive)]/10 transition-colors"
+          title="Delete thread"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
     </motion.div>
   );
 }
 
-// ─── Mock Session Card ────────────────────────────────────────────────────────
+// ─── DB Session row (from Supabase) ──────────────────────────────────────────
 
-type MockSession = (typeof MOCK_SESSIONS)[number];
-
-interface MockSessionCardProps {
-  session: MockSession;
-  isExpanded: boolean;
-  onToggle: () => void;
+interface DbSession {
+  id: string;
+  title?: string | null;
+  target_url?: string | null;
+  created_at?: string;
+  status?: string;
+  framework?: string | null;
+  message_count?: number;
 }
 
-function MockSessionCard({ session, isExpanded, onToggle }: MockSessionCardProps) {
-  const status = session.status as SessionStatus;
-  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
-  const passRate =
-    session.total_tests > 0
-      ? Math.round((session.pass_count / session.total_tests) * 100)
-      : 0;
-
+function DbSessionRow({
+  session,
+  onDelete,
+}: {
+  session: DbSession;
+  onDelete: (id: string) => void;
+}) {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
-      className="group rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden hover:border-[var(--primary)]/30 transition-all duration-200 shadow-[0_1px_2px_rgba(0,0,0,0.2),0_4px_16px_-4px_rgba(0,0,0,0.3)]"
+      className="group flex items-start gap-4 p-4 rounded-xl border border-[var(--accent)]/20 bg-[var(--card)]/60 hover:border-[var(--accent)]/40 hover:bg-[var(--card)] transition-all duration-200"
     >
-      {/* Card header — always visible */}
-      <button
-        onClick={onToggle}
-        className="w-full text-left p-5 flex items-start gap-4"
-      >
-        {/* Status indicator */}
-        <div
-          className={cn(
-            "mt-0.5 flex items-center justify-center w-7 h-7 rounded-lg border shrink-0",
-            cfg.bg,
-            cfg.color
+      <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 flex items-center justify-center">
+        <Star className="w-4 h-4 text-[var(--accent)]" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-[var(--foreground)] truncate">
+            {session.title ?? "Untitled session"}
+          </p>
+          {session.created_at && (
+            <span className="flex-shrink-0 text-xs text-[var(--muted-foreground)]">
+              {formatDate(session.created_at)}
+            </span>
           )}
-        >
-          {cfg.icon}
         </div>
+        {session.target_url && (
+          <p className="text-xs text-[var(--accent)] truncate mt-0.5">{session.target_url}</p>
+        )}
+        <div className="flex items-center gap-3 mt-2">
+          {session.status && <StatusBadge status={session.status} />}
+          {session.framework && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20">
+              {session.framework}
+            </span>
+          )}
+          <span className="text-xs text-[var(--accent)]/70 font-medium">Cloud saved</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Link
+          href={`/session/${session.id}`}
+          className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5 transition-colors"
+          title="View session"
+        >
+          <Eye className="w-4 h-4" />
+        </Link>
+        <button
+          onClick={() => onDelete(session.id)}
+          className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--destructive)] hover:bg-[var(--destructive)]/10 transition-colors"
+          title="Delete session"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
 
+// ─── Session card (mock data) ─────────────────────────────────────────────────
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 16 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
+};
+
+function SessionCard({
+  session,
+  isSelected,
+  onSelect,
+  onDelete,
+}: {
+  session: (typeof MOCK_SESSIONS)[number];
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <motion.div
+      variants={cardVariants}
+      layout
+      className={cn(
+        "rounded-xl border transition-all duration-200",
+        isSelected
+          ? "border-[var(--primary)]/60 bg-[var(--card)]"
+          : "border-[var(--border)] bg-[var(--card)]/60 hover:border-[var(--primary)]/30 hover:bg-[var(--card)]"
+      )}
+    >
+      {/* Card header */}
+      <div className="flex items-start gap-3 p-4">
+        {/* Checkbox */}
+        <button
+          onClick={() => onSelect(session.id)}
+          className="flex-shrink-0 mt-0.5 w-4 h-4 rounded border border-[var(--border)] flex items-center justify-center hover:border-[var(--primary)] transition-colors"
+          aria-label={isSelected ? "Deselect" : "Select"}
+        >
+          {isSelected && <Check className="w-3 h-3 text-[var(--primary)]" />}
+        </button>
+
+        {/* Main content */}
         <div className="flex-1 min-w-0">
-          {/* Title + URL */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="font-semibold text-[var(--foreground)] text-sm leading-snug truncate">
-                {session.title}
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-[var(--foreground)] truncate">
+                {session.title ?? "Untitled session"}
               </h3>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <Globe className="w-3 h-3 text-[var(--muted-foreground)] shrink-0" />
-                <span className="text-xs text-[var(--muted-foreground)] truncate font-mono">
+              <div className="flex items-center gap-1.5 mt-1">
+                <Globe className="w-3 h-3 text-[var(--muted-foreground)] flex-shrink-0" />
+                <a
+                  href={session.target_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-[var(--accent)] hover:underline truncate"
+                >
                   {session.target_url}
-                </span>
+                </a>
               </div>
             </div>
-            <ChevronDown
-              className={cn(
-                "w-4 h-4 text-[var(--muted-foreground)] shrink-0 transition-transform duration-200",
-                isExpanded && "rotate-180"
-              )}
-            />
+            <StatusBadge status={session.status} />
           </div>
 
           {/* Meta row */}
-          <div className="flex flex-wrap items-center gap-2 mt-2.5">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border",
-                cfg.bg,
-                cfg.color
-              )}
-            >
-              {cfg.icon}
-              {cfg.label}
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            <span className="text-xs text-[var(--muted-foreground)] flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              {formatDate(session.created_at)} {formatTime(session.created_at)}
             </span>
-            <span
-              className={cn(
-                "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border",
-                FRAMEWORK_COLORS[session.test_framework] ??
-                  "bg-white/5 text-[var(--muted-foreground)] border-white/10"
-              )}
-            >
-              {session.test_framework}
+            <span className="text-xs text-[var(--muted-foreground)] flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {formatDuration(session.duration_ms)}
             </span>
-            <span
-              className={cn(
-                "inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border",
-                MODE_COLORS[session.agent_mode] ??
-                  "bg-white/5 text-[var(--muted-foreground)] border-white/10"
-              )}
-            >
+            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20">
               {session.agent_mode}
             </span>
-            {session.total_tests > 0 && (
-              <span className="text-[10px] text-[var(--muted-foreground)]">
-                {session.pass_count}/{session.total_tests} passed
-              </span>
-            )}
-            <span className="text-[10px] text-[var(--muted-foreground)] ml-auto">
-              {formatDate(session.created_at)} · {formatTime(session.created_at)}
+            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20">
+              {session.test_framework}
             </span>
           </div>
-        </div>
-      </button>
 
-      {/* Expanded detail */}
-      <AnimatePresence initial={false}>
-        {isExpanded && (
+          {/* Pass rate */}
+          {session.total_tests > 0 && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  {session.pass_count} passed / {session.fail_count} failed / {session.skip_count} skipped
+                </span>
+                <span className="text-xs text-[var(--muted-foreground)]">{session.total_tests} total</span>
+              </div>
+              <PassRateBar pass={session.pass_count} total={session.total_tests} />
+            </div>
+          )}
+
+          {/* Output types */}
+          <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+            {session.output_types.map((t) => (
+              <OutputPill key={t} type={t} />
+            ))}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Link
+            href={`/session/${session.id}`}
+            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5 transition-colors"
+            title="View session"
+          >
+            <Eye className="w-4 h-4" />
+          </Link>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5 transition-colors"
+            title="Expand"
+          >
+            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={() => onDelete(session.id)}
+            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--destructive)] hover:bg-[var(--destructive)]/10 transition-colors"
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded summary */}
+      <AnimatePresence>
+        {expanded && (
           <motion.div
-            key="detail"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: "easeOut" }}
+            transition={{ duration: 0.25 }}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5 border-t border-[var(--border)] pt-4 space-y-4">
-              {/* Pass rate bar */}
-              {session.total_tests > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-[var(--muted-foreground)]">Pass rate</span>
-                    <span className="text-xs font-semibold text-[var(--foreground)]">{passRate}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-400 rounded-full transition-all"
-                      style={{ width: `${passRate}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-4 mt-2 text-[10px] text-[var(--muted-foreground)]">
-                    <span className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                      {session.pass_count} passed
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--destructive)] inline-block" />
-                      {session.fail_count} failed
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
-                      {session.skip_count} skipped
-                    </span>
-                    <span className="ml-auto flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatDuration(session.duration_ms)}
-                    </span>
-                  </div>
+            <div className="px-4 pb-4 pt-0 border-t border-[var(--border)]/60">
+              <div className="pt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="text-center p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
+                  <p className="text-lg font-bold text-emerald-400">{session.pass_count}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Passed
+                  </p>
                 </div>
-              )}
-
-              {/* Output types */}
-              <div className="flex flex-wrap gap-1.5">
-                {session.output_types.map((type) => (
-                  <span
-                    key={type}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-white/5 text-[var(--muted-foreground)] border border-white/10"
-                  >
-                    {type === "script" && <FileCode className="w-2.5 h-2.5" />}
-                    {type === "excel" && <FileText className="w-2.5 h-2.5" />}
-                    {type === "bug-report" && <AlertCircle className="w-2.5 h-2.5" />}
-                    {type === "log" && <Activity className="w-2.5 h-2.5" />}
-                    {type}
-                  </span>
-                ))}
+                <div className="text-center p-2 rounded-lg bg-[var(--destructive)]/5 border border-[var(--destructive)]/10">
+                  <p className="text-lg font-bold text-[var(--destructive)]">{session.fail_count}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Failed
+                  </p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
+                  <p className="text-lg font-bold text-amber-400">{session.skip_count}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Skipped
+                  </p>
+                </div>
+                <div className="text-center p-2 rounded-lg bg-[var(--primary)]/5 border border-[var(--primary)]/10">
+                  <p className="text-lg font-bold text-[var(--primary)]">{session.total_tests}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Total
+                  </p>
+                </div>
               </div>
-
-              {/* Summary note */}
-              {session.summary && "notes" in session.summary && session.summary.notes && (
-                <p className="text-xs text-[var(--muted-foreground)] italic">
-                  {session.summary.notes as string}
+              {session.summary && (
+                <p className="mt-3 text-xs text-[var(--muted-foreground)] leading-relaxed">
+                  {JSON.stringify(session.summary)}
                 </p>
               )}
-              {session.summary && "error" in session.summary && session.summary.error && (
-                <p className="text-xs text-[var(--destructive)]">
-                  ⚠ {session.summary.error as string}
-                </p>
-              )}
-
-              {/* Actions */}
-              <div className="flex items-center gap-2 pt-1">
-                <Link
-                  href={`/session/${session.id}`}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-colors"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  View Session
-                </Link>
-                <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-[var(--muted-foreground)] border border-white/10 hover:text-[var(--foreground)] transition-colors">
-                  <Download className="w-3 h-3" />
-                  Download All
-                </button>
-              </div>
             </div>
           </motion.div>
         )}
@@ -534,240 +599,376 @@ function MockSessionCard({ session, isExpanded, onToggle }: MockSessionCardProps
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-const STATUS_FILTERS: { value: SessionStatus | "all"; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "completed", label: "Completed" },
-  { value: "running", label: "Running" },
-  { value: "error", label: "Error" },
-  { value: "pending", label: "Pending" },
-];
-
 export default function HistoryPage() {
   const t = useTranslations();
+  const { user } = useAuth();
 
-  // Real threads from localStorage
+  // ── State ──
   const [threads, setThreads] = useState<Thread[]>([]);
-  const [threadMessageCounts, setThreadMessageCounts] = useState<Record<string, number>>({});
-
-  // Mock session state
-  const [expandedSession, setExpandedSession] = useState<string | null>(null);
-
-  // Filters
+  const [dbSessions, setDbSessions] = useState<DbSession[]>([]);
+  const [mockSessions, setMockSessions] = useState(MOCK_SESSIONS);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<SessionStatus | "all">("all");
-  const [activeTab, setActiveTab] = useState<"threads" | "sessions">("threads");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [frameworkFilter, setFrameworkFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<"sessions" | "threads" | "cloud">("sessions");
+  const [mounted, setMounted] = useState(false);
 
-  // Load real threads
+  // ── Mount guard (localStorage is client-only) ──
   useEffect(() => {
-    const stored = getThreads();
-    setThreads(stored);
-    const counts: Record<string, number> = {};
-    stored.forEach((t) => {
-      counts[t.id] = getMessages(t.id).length;
+    setMounted(true);
+    setThreads(getThreads());
+  }, []);
+
+  // ── Load Supabase sessions when user changes ──
+  useEffect(() => {
+    if (!user) {
+      setDbSessions([]);
+      return;
+    }
+    getLongTermSessions(user.id)
+      .then((sessions) => {
+        setDbSessions(Array.isArray(sessions) ? (sessions as DbSession[]) : []);
+      })
+      .catch(() => {
+        setDbSessions([]);
+      });
+  }, [user]);
+
+  // ── Delete handlers ──
+  const handleDeleteThread = useCallback(
+    async (id: string) => {
+      deleteThread(id);
+      setThreads((prev) => prev.filter((t) => t.id !== id));
+      if (user) {
+        try {
+          await deleteSessionFromDB(id);
+        } catch {
+          // non-fatal
+        }
+      }
+    },
+    [user]
+  );
+
+  const handleDeleteDbSession = useCallback(
+    async (id: string) => {
+      setDbSessions((prev) => prev.filter((s) => s.id !== id));
+      try {
+        await deleteSessionFromDB(id);
+      } catch {
+        // non-fatal
+      }
+    },
+    []
+  );
+
+  const handleDeleteMock = useCallback((id: string) => {
+    setMockSessions((prev) => prev.filter((s) => s.id !== id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
     });
-    setThreadMessageCounts(counts);
   }, []);
 
-  const handleDeleteThread = useCallback((id: string) => {
-    setThreads((prev) => prev.filter((t) => t.id !== id));
+  const handleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
 
-  // Filter mock sessions
+  const handleDeleteSelected = useCallback(() => {
+    setMockSessions((prev) => prev.filter((s) => !selectedIds.has(s.id)));
+    setSelectedIds(new Set());
+  }, [selectedIds]);
+
+  // ── Filtered mock sessions ──
   const filteredSessions = useMemo(() => {
-    return MOCK_SESSIONS.filter((s) => {
-      const matchesSearch =
-        search.trim() === "" ||
-        s.title.toLowerCase().includes(search.toLowerCase()) ||
+    return mockSessions.filter((s) => {
+      const matchSearch =
+        search === "" ||
+        (s.title ?? "").toLowerCase().includes(search.toLowerCase()) ||
         s.target_url.toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = statusFilter === "all" || s.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchStatus = statusFilter === "all" || s.status === statusFilter;
+      const matchFramework =
+        frameworkFilter === "all" || s.test_framework === frameworkFilter;
+      return matchSearch && matchStatus && matchFramework;
     });
-  }, [search, statusFilter]);
+  }, [mockSessions, search, statusFilter, frameworkFilter]);
 
-  // Filter real threads
+  // ── Filtered threads ──
   const filteredThreads = useMemo(() => {
-    return threads.filter((t) => {
-      if (search.trim() === "") return true;
-      const title = t.title ?? "";
-      return (
-        title.toLowerCase().includes(search.toLowerCase()) ||
+    if (search === "") return threads;
+    return threads.filter(
+      (t) =>
+        (t.title ?? "").toLowerCase().includes(search.toLowerCase()) ||
         (t.targetUrl ?? "").toLowerCase().includes(search.toLowerCase())
-      );
-    });
+    );
   }, [threads, search]);
 
-  // Summary stats
-  const stats = useMemo(() => ({
-    totalSessions: MOCK_SESSIONS.length,
-    completedSessions: MOCK_SESSIONS.filter((s) => s.status === "completed").length,
-    totalThreads: threads.length,
-    totalTests: MOCK_SESSIONS.reduce((acc, s) => acc + s.total_tests, 0),
-  }), [threads.length]);
+  // ── Stats ──
+  const stats = useMemo(() => {
+    const total = mockSessions.length;
+    const completed = mockSessions.filter((s) => s.status === "completed").length;
+    const errors = mockSessions.filter((s) => s.status === "error").length;
+    const totalTests = mockSessions.reduce((acc, s) => acc + s.total_tests, 0);
+    const totalPassed = mockSessions.reduce((acc, s) => acc + s.pass_count, 0);
+    return { total, completed, errors, totalTests, totalPassed };
+  }, [mockSessions]);
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      {/* ── Page header ── */}
-      <div className="border-b border-[var(--border)] bg-[var(--card)]/40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <Reveal>
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-[var(--accent)] mb-2">
-                  History
-                </p>
-                <h1 className="text-3xl font-bold text-[var(--foreground)] tracking-tight">
-                  Test History
-                </h1>
-                <p className="mt-2 text-sm text-[var(--muted-foreground)] max-w-lg">
-                  Browse your chat threads and past test sessions. Review artifacts, results, and session details.
-                </p>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {/* ── Page header ── */}
+        <Reveal>
+          <div className="flex items-start justify-between gap-4 mb-8 flex-wrap">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-[var(--foreground)] tracking-tight">
+                Session History
+              </h1>
+              <p className="text-[var(--muted-foreground)] mt-1 text-sm">
+                Browse past QA runs, review results, and download artifacts.
+              </p>
+            </div>
+
+            {/* Signed-in badge */}
+            {user && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-xs text-[var(--accent)] font-medium">
+                <User className="w-3.5 h-3.5" />
+                <span className="truncate max-w-[200px]">{user.email}</span>
               </div>
-              <Link
-                href="/home-chat-interface"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary)]/90 transition-colors shrink-0"
-              >
-                <Globe className="w-4 h-4" />
-                New Session
-              </Link>
-            </div>
-          </Reveal>
-
-          {/* Stats strip */}
-          <Reveal delay={0.1}>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
-              {[
-                { label: "Chat Threads", value: stats.totalThreads, icon: MessageSquare },
-                { label: "Test Sessions", value: stats.totalSessions, icon: Activity },
-                { label: "Completed", value: stats.completedSessions, icon: CheckCircle },
-                { label: "Total Tests", value: stats.totalTests, icon: Star },
-              ].map(({ label, value, icon: Icon }) => (
-                <div
-                  key={label}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 text-center"
-                >
-                  <Icon className="w-4 h-4 text-[var(--accent)] mx-auto mb-1" />
-                  <p className="text-2xl font-bold text-[var(--foreground)]">{value}</p>
-                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{label}</p>
-                </div>
-              ))}
-            </div>
-          </Reveal>
-        </div>
-      </div>
-
-      {/* ── Main content ── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Tabs */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--card)] border border-[var(--border)] w-fit mb-6">
-          {(["threads", "sessions"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                "px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                activeTab === tab
-                  ? "bg-[var(--primary)] text-white shadow-sm"
-                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              )}
-            >
-              {tab === "threads" ? "Chat Threads" : "Mock Sessions"}
-            </button>
-          ))}
-        </div>
-
-        {/* Search + filters */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
-            <input
-              type="text"
-              placeholder={activeTab === "threads" ? "Search threads..." : "Search sessions..."}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)]/60 transition-all"
-            />
+            )}
           </div>
+        </Reveal>
 
-          {activeTab === "sessions" && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {STATUS_FILTERS.map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setStatusFilter(f.value)}
+        {/* ── Stats row ── */}
+        <Reveal delay={0.05}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+            {[
+              { label: "Total Sessions", value: stats.total, color: "text-[var(--foreground)]" },
+              { label: "Completed", value: stats.completed, color: "text-emerald-400" },
+              { label: "Errors", value: stats.errors, color: "text-[var(--destructive)]" },
+              {
+                label: "Pass Rate",
+                value:
+                  stats.totalTests > 0
+                    ? `${Math.round((stats.totalPassed / stats.totalTests) * 100)}%`
+                    : "—",
+                color: "text-[var(--accent)]",
+              },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="p-4 rounded-xl border border-[var(--border)] bg-[var(--card)]/60"
+              >
+                <p className={cn("text-2xl font-bold tabular-nums", stat.color)}>{stat.value}</p>
+                <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        </Reveal>
+
+        {/* ── Tabs ── */}
+        <Reveal delay={0.08}>
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-[var(--card)]/60 border border-[var(--border)] w-fit mb-6">
+            {([
+              { key: "sessions", label: "Mock Sessions", count: filteredSessions.length },
+              { key: "threads", label: "Chat History", count: filteredThreads.length },
+              ...(user
+                ? [{ key: "cloud", label: "Cloud Sessions", count: dbSessions.length }]
+                : []),
+            ] as { key: string; label: string; count: number }[]).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key as typeof activeTab)}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2",
+                  activeTab === tab.key
+                    ? "bg-[var(--primary)] text-white shadow-sm"
+                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5"
+                )}
+              >
+                {tab.label}
+                <span
                   className={cn(
-                    "px-3 py-2 rounded-lg text-xs font-medium border transition-all",
-                    statusFilter === f.value
-                      ? "bg-[var(--primary)] text-white border-[var(--primary)]"
-                      : "bg-[var(--card)] text-[var(--muted-foreground)] border-[var(--border)] hover:text-[var(--foreground)]"
+                    "text-xs px-1.5 py-0.5 rounded-full",
+                    activeTab === tab.key
+                      ? "bg-white/20 text-white"
+                      : "bg-[var(--border)]/60 text-[var(--muted-foreground)]"
                   )}
                 >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </Reveal>
 
-        {/* Content */}
-        <AnimatePresence mode="wait">
-          {activeTab === "threads" ? (
-            <motion.div
-              key="threads"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="space-y-3"
-            >
-              {filteredThreads.length === 0 ? (
-                <div className="text-center py-16 text-[var(--muted-foreground)]">
-                  <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p className="font-medium">No chat threads yet</p>
-                  <p className="text-sm mt-1">Start a new session to see your threads here.</p>
-                  <Link
-                    href="/home-chat-interface"
-                    className="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold hover:bg-[var(--primary)]/90 transition-colors"
-                  >
-                    Start chatting
-                  </Link>
-                </div>
-              ) : (
-                filteredThreads.map((thread) => (
-                  <RealThreadCard
-                    key={thread.id}
-                    thread={thread}
-                    messageCount={threadMessageCounts[thread.id] ?? 0}
-                    onDelete={handleDeleteThread}
-                  />
-                ))
+        {/* ── Filters ── */}
+        <Reveal delay={0.1}>
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
+              <input
+                type="text"
+                placeholder="Search sessions..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-lg bg-[var(--card)]/60 border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:border-[var(--primary)]/60 transition-colors"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               )}
-            </motion.div>
-          ) : (
+            </div>
+
+            {/* Status filter (sessions tab only) */}
+            {activeTab === "sessions" && (
+              <>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-[var(--card)]/60 border border-[var(--border)] text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--primary)]/60 transition-colors"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="completed">Completed</option>
+                  <option value="running">Running</option>
+                  <option value="error">Error</option>
+                  <option value="pending">Pending</option>
+                </select>
+
+                <select
+                  value={frameworkFilter}
+                  onChange={(e) => setFrameworkFilter(e.target.value)}
+                  className="px-3 py-2 rounded-lg bg-[var(--card)]/60 border border-[var(--border)] text-sm text-[var(--foreground)] focus:outline-none focus:border-[var(--primary)]/60 transition-colors"
+                >
+                  <option value="all">All frameworks</option>
+                  <option value="playwright">Playwright</option>
+                  <option value="cypress">Cypress</option>
+                  <option value="both">Both</option>
+                </select>
+              </>
+            )}
+
+            {/* Bulk delete */}
+            {selectedIds.size > 0 && activeTab === "sessions" && (
+              <button
+                onClick={handleDeleteSelected}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--destructive)]/10 border border-[var(--destructive)]/20 text-[var(--destructive)] text-sm font-medium hover:bg-[var(--destructive)]/20 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete {selectedIds.size} selected
+              </button>
+            )}
+          </div>
+        </Reveal>
+
+        {/* ── Content ── */}
+        <AnimatePresence mode="wait">
+          {/* Sessions tab */}
+          {activeTab === "sessions" && (
             <motion.div
               key="sessions"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              className="space-y-3"
+              transition={{ duration: 0.2 }}
+              className="flex flex-col gap-3"
             >
               {filteredSessions.length === 0 ? (
                 <div className="text-center py-16 text-[var(--muted-foreground)]">
-                  <Activity className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                  <p className="font-medium">No sessions match your filters</p>
-                  <p className="text-sm mt-1">Try adjusting your search or status filter.</p>
+                  <AlertCircle className="w-8 h-8 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">No sessions match your filters.</p>
                 </div>
               ) : (
-                filteredSessions.map((session) => (
-                  <MockSessionCard
-                    key={session.id}
-                    session={session}
-                    isExpanded={expandedSession === session.id}
-                    onToggle={() =>
-                      setExpandedSession((prev) =>
-                        prev === session.id ? null : session.id
-                      )
-                    }
-                  />
-                ))
+                <AnimatePresence>
+                  {filteredSessions.map((session) => (
+                    <SessionCard
+                      key={session.id}
+                      session={session}
+                      isSelected={selectedIds.has(session.id)}
+                      onSelect={handleSelect}
+                      onDelete={handleDeleteMock}
+                    />
+                  ))}
+                </AnimatePresence>
+              )}
+            </motion.div>
+          )}
+
+          {/* Threads tab */}
+          {activeTab === "threads" && (
+            <motion.div
+              key="threads"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-col gap-3"
+            >
+              {!mounted ? (
+                <div className="text-center py-16 text-[var(--muted-foreground)]">
+                  <Clock className="w-8 h-8 mx-auto mb-3 opacity-40 animate-spin" />
+                  <p className="text-sm">Loading chat history...</p>
+                </div>
+              ) : filteredThreads.length === 0 ? (
+                <div className="text-center py-16 text-[var(--muted-foreground)]">
+                  <MessageSquare className="w-8 h-8 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">
+                    {search ? "No threads match your search." : "No chat sessions yet. Start a conversation in the Chat tab."}
+                  </p>
+                </div>
+              ) : (
+                <AnimatePresence>
+                  {filteredThreads.map((thread) => (
+                    <ThreadRow
+                      key={thread.id}
+                      thread={thread}
+                      onDelete={handleDeleteThread}
+                    />
+                  ))}
+                </AnimatePresence>
+              )}
+            </motion.div>
+          )}
+
+          {/* Cloud sessions tab (only shown when signed in) */}
+          {activeTab === "cloud" && user && (
+            <motion.div
+              key="cloud"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-col gap-3"
+            >
+              {dbSessions.length === 0 ? (
+                <div className="text-center py-16 text-[var(--muted-foreground)]">
+                  <Star className="w-8 h-8 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm">No cloud sessions found for your account.</p>
+                  <p className="text-xs mt-1 opacity-60">
+                    Sessions are saved to the cloud as you chat.
+                  </p>
+                </div>
+              ) : (
+                <AnimatePresence>
+                  {dbSessions.map((session) => (
+                    <DbSessionRow
+                      key={session.id}
+                      session={session}
+                      onDelete={handleDeleteDbSession}
+                    />
+                  ))}
+                </AnimatePresence>
               )}
             </motion.div>
           )}

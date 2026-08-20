@@ -1,60 +1,28 @@
-// Supabase server client scaffold — replace with real @supabase/ssr when ready
-// import { createServerClient as _createServerClient } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import type { CookieOptions } from '@supabase/ssr'
 
-type SupabaseStub = {
-  from: (table: string) => any
-  auth: Record<string, any>
-  storage: Record<string, any>
-  rpc: (fn: string, args?: Record<string, unknown>) => any
-}
+export async function createClient() {
+  const cookieStore = await cookies()
 
-function createStubClient(): SupabaseStub {
-  const queryBuilder: any = {
-    select: () => queryBuilder,
-    insert: () => queryBuilder,
-    update: () => queryBuilder,
-    delete: () => queryBuilder,
-    upsert: () => queryBuilder,
-    eq: () => queryBuilder,
-    neq: () => queryBuilder,
-    gt: () => queryBuilder,
-    lt: () => queryBuilder,
-    gte: () => queryBuilder,
-    lte: () => queryBuilder,
-    like: () => queryBuilder,
-    ilike: () => queryBuilder,
-    in: () => queryBuilder,
-    order: () => queryBuilder,
-    limit: () => queryBuilder,
-    range: () => queryBuilder,
-    single: () => Promise.resolve({ data: null, error: null }),
-    maybeSingle: () => Promise.resolve({ data: null, error: null }),
-    then: (resolve: (v: { data: null; error: null }) => void) =>
-      Promise.resolve({ data: null, error: null }).then(resolve),
-  }
-  return {
-    from: (_table: string) => queryBuilder,
-    auth: {
-      getUser: () => Promise.resolve({ data: { user: null }, error: null }),
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      signOut: () => Promise.resolve({ error: null }),
-    },
-    storage: {
-      from: (_bucket: string) => ({
-        download: () => Promise.resolve({ data: null, error: null }),
-        upload: () => Promise.resolve({ data: null, error: null }),
-        getPublicUrl: () => ({ data: { publicUrl: '' } }),
-      }),
-    },
-    rpc: (_fn: string, _args?: Record<string, unknown>) =>
-      Promise.resolve({ data: null, error: null }),
-  }
-}
-
-export function createServerClient(): SupabaseStub {
-  return createStubClient()
-}
-
-export async function createClient(): Promise<SupabaseStub> {
-  return createStubClient()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet: { name: string; value: string; options?: CookieOptions }[]) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // Server Component — cookies can't be set here, middleware handles it
+          }
+        },
+      },
+    }
+  )
 }

@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import ConditionalFooter from "@/components/ConditionalFooter";
 import LocaleProvider from "@/components/LocaleProvider";
 import LanguageToggle from "@/components/LanguageToggle";
+import { AuthProvider } from "@/lib/supabase/auth-context";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -37,10 +38,12 @@ export default function RootLayout({
       </head>
       <body className="bg-[var(--background)] text-[var(--foreground)] antialiased min-h-screen flex flex-col">
         <LocaleProvider>
-          <LanguageToggle />
-          <Navbar />
-          <main className="flex-1">{children}</main>
-          <ConditionalFooter />
+          <AuthProvider>
+            <LanguageToggle />
+            <Navbar />
+            <main className="flex-1">{children}</main>
+            <ConditionalFooter />
+          </AuthProvider>
         </LocaleProvider>
       </body>
     </html>
