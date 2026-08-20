@@ -5,14 +5,12 @@ import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
 import { ArrowLeft, CheckCircle, XCircle, Clock, Download, ChevronDown, ChevronRight, FileText, Terminal, Table, Activity, Globe, Calendar, Layers, Settings, AlertCircle, Check, X, Minus } from 'lucide-react';
 import { Reveal } from "@/components/Reveal";
-import { Session, Message, AgentStep, TestResult, Artifact } from "@/lib/data";
-type SessionStatus = any;
-const SessionStatus: any = [];
-type TestStatus = any;
-const TestStatus: any = [];
-type StepStatus = any;
-const StepStatus: any = [];
+import { type Session, type Message, type AgentStep, type TestResult, type Artifact } from "@/lib/data";
 import { fadeInUp, staggerContainer, scaleIn } from "@/lib/motion";
+
+type SessionStatus = "completed" | "running" | "error" | "pending";
+type TestStatus = "pass" | "fail" | "skip" | "pending";
+type StepStatus = "complete" | "running" | "pending" | "error";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -118,22 +116,22 @@ const MOCK_STEPS: AgentStep[] = [
     id: "step_003",
     session_id: MOCK_SESSION.id,
     step_index: 2,
-    step_type: "generate",
-    title: "Generating test cases",
-    detail: "Writing 12 test cases covering all flows, edge cases, and accessibility checks.",
+    step_type: "plan",
+    title: "Generating test plan",
+    detail: "Created 12 test cases covering all 6 user flows plus accessibility checks.",
     status: "complete",
     created_at: "2024-06-12T09:15:20Z",
-    completed_at: "2024-06-12T09:16:05Z",
+    completed_at: "2024-06-12T09:15:50Z",
   },
   {
     id: "step_004",
     session_id: MOCK_SESSION.id,
     step_index: 3,
     step_type: "execute",
-    title: "Executing Playwright tests",
-    detail: "Running all 12 test cases in headless Chromium.",
+    title: "Running Playwright test suite",
+    detail: "Executing 12 tests in headless Chromium. Capturing screenshots on failure.",
     status: "complete",
-    created_at: "2024-06-12T09:16:05Z",
+    created_at: "2024-06-12T09:15:50Z",
     completed_at: "2024-06-12T09:19:30Z",
   },
   {
@@ -141,8 +139,8 @@ const MOCK_STEPS: AgentStep[] = [
     session_id: MOCK_SESSION.id,
     step_index: 4,
     step_type: "report",
-    title: "Compiling artifacts",
-    detail: "Generating Playwright script file, Excel test case sheet, and bug report.",
+    title: "Generating artifacts",
+    detail: "Writing Playwright script, Excel test case sheet, and bug report.",
     status: "complete",
     created_at: "2024-06-12T09:19:30Z",
     completed_at: "2024-06-12T09:19:55Z",
@@ -154,169 +152,169 @@ const MOCK_RESULTS: TestResult[] = [
     id: "tr_001",
     session_id: MOCK_SESSION.id,
     test_case_id: "TC-001",
-    test_name: "Add a new todo item",
-    description: "Type text in input and press Enter; item appears in list.",
-    category: "Core Flow",
+    test_name: "Page loads successfully",
+    description: "Verify the TodoMVC app renders without errors.",
+    category: "Navigation",
     priority: "High",
     status: "pass",
     error_message: null,
     screenshot_path: null,
     duration_ms: 1240,
-    created_at: "2024-06-12T09:16:10Z",
+    created_at: "2024-06-12T09:15:50Z",
   },
   {
     id: "tr_002",
     session_id: MOCK_SESSION.id,
     test_case_id: "TC-002",
-    test_name: "Mark todo as complete",
-    description: "Click checkbox; item gets strikethrough styling.",
-    category: "Core Flow",
+    test_name: "Add a new todo item",
+    description: "Type in the input and press Enter to create a new item.",
+    category: "CRUD",
     priority: "High",
     status: "pass",
     error_message: null,
     screenshot_path: null,
-    duration_ms: 980,
-    created_at: "2024-06-12T09:16:22Z",
+    duration_ms: 870,
+    created_at: "2024-06-12T09:15:52Z",
   },
   {
     id: "tr_003",
     session_id: MOCK_SESSION.id,
     test_case_id: "TC-003",
-    test_name: "Delete a todo item",
-    description: "Hover item and click destroy button; item removed from list.",
-    category: "Core Flow",
-    priority: "High",
-    status: "pass",
-    error_message: null,
-    screenshot_path: null,
-    duration_ms: 1100,
-    created_at: "2024-06-12T09:16:35Z",
-  },
-  {
-    id: "tr_004",
-    session_id: MOCK_SESSION.id,
-    test_case_id: "TC-004",
-    test_name: "Edit todo on double-click",
-    description: "Double-click item to enter edit mode; update text and press Enter.",
-    category: "Core Flow",
-    priority: "High",
-    status: "fail",
-    error_message: "TimeoutError: locator('.editing') not visible after 5000ms. Edit mode did not activate on double-click.",
-    screenshot_path: "/screenshots/tc-004-fail.png",
-    duration_ms: 5200,
-    created_at: "2024-06-12T09:16:50Z",
-  },
-  {
-    id: "tr_005",
-    session_id: MOCK_SESSION.id,
-    test_case_id: "TC-005",
-    test_name: "Filter: Show All",
-    description: "Click 'All' filter; all todos visible regardless of status.",
-    category: "Filtering",
-    priority: "Medium",
-    status: "pass",
-    error_message: null,
-    screenshot_path: null,
-    duration_ms: 870,
-    created_at: "2024-06-12T09:17:10Z",
-  },
-  {
-    id: "tr_006",
-    session_id: MOCK_SESSION.id,
-    test_case_id: "TC-006",
-    test_name: "Filter: Show Active",
-    description: "Click 'Active' filter; only incomplete todos visible.",
-    category: "Filtering",
-    priority: "Medium",
-    status: "pass",
-    error_message: null,
-    screenshot_path: null,
-    duration_ms: 920,
-    created_at: "2024-06-12T09:17:22Z",
-  },
-  {
-    id: "tr_007",
-    session_id: MOCK_SESSION.id,
-    test_case_id: "TC-007",
-    test_name: "Filter: Show Completed",
-    description: "Click 'Completed' filter; only done todos visible.",
-    category: "Filtering",
-    priority: "Medium",
-    status: "pass",
-    error_message: null,
-    screenshot_path: null,
-    duration_ms: 890,
-    created_at: "2024-06-12T09:17:35Z",
-  },
-  {
-    id: "tr_008",
-    session_id: MOCK_SESSION.id,
-    test_case_id: "TC-008",
-    test_name: "Active count badge accuracy",
-    description: "Badge shows correct count of remaining active todos.",
-    category: "Filtering",
-    priority: "Medium",
-    status: "fail",
-    error_message: "AssertionError: expected badge text '3 items left' but received '4 items left'. Count mismatch after completing an item.",
-    screenshot_path: "/screenshots/tc-008-fail.png",
-    duration_ms: 1450,
-    created_at: "2024-06-12T09:17:50Z",
-  },
-  {
-    id: "tr_009",
-    session_id: MOCK_SESSION.id,
-    test_case_id: "TC-009",
-    test_name: "Clear completed todos",
-    description: "Click 'Clear completed'; all done items removed from list.",
-    category: "Bulk Actions",
-    priority: "Medium",
-    status: "pass",
-    error_message: null,
-    screenshot_path: null,
-    duration_ms: 1050,
-    created_at: "2024-06-12T09:18:05Z",
-  },
-  {
-    id: "tr_010",
-    session_id: MOCK_SESSION.id,
-    test_case_id: "TC-010",
-    test_name: "Toggle all todos complete",
-    description: "Click chevron toggle; all items marked complete simultaneously.",
-    category: "Bulk Actions",
-    priority: "Medium",
-    status: "pass",
-    error_message: null,
-    screenshot_path: null,
-    duration_ms: 1180,
-    created_at: "2024-06-12T09:18:20Z",
-  },
-  {
-    id: "tr_011",
-    session_id: MOCK_SESSION.id,
-    test_case_id: "TC-011",
-    test_name: "Input field ARIA label",
-    description: "Main input has accessible placeholder and aria-label attribute.",
-    category: "Accessibility",
+    test_name: "Mark todo as complete",
+    description: "Click the checkbox to toggle completion state.",
+    category: "CRUD",
     priority: "High",
     status: "pass",
     error_message: null,
     screenshot_path: null,
     duration_ms: 640,
-    created_at: "2024-06-12T09:18:35Z",
+    created_at: "2024-06-12T09:15:54Z",
+  },
+  {
+    id: "tr_004",
+    session_id: MOCK_SESSION.id,
+    test_case_id: "TC-004",
+    test_name: "Delete a todo item",
+    description: "Hover over item and click the destroy button.",
+    category: "CRUD",
+    priority: "Medium",
+    status: "pass",
+    error_message: null,
+    screenshot_path: null,
+    duration_ms: 720,
+    created_at: "2024-06-12T09:15:56Z",
+  },
+  {
+    id: "tr_005",
+    session_id: MOCK_SESSION.id,
+    test_case_id: "TC-005",
+    test_name: "Edit todo on double-click",
+    description: "Double-click a todo item to enter edit mode and save changes.",
+    category: "CRUD",
+    priority: "Medium",
+    status: "fail",
+    error_message: "Element not editable: .todo-list li.editing input.edit — timeout 5000ms exceeded.",
+    screenshot_path: "/screenshots/tc-005-fail.png",
+    duration_ms: 5120,
+    created_at: "2024-06-12T09:16:00Z",
+  },
+  {
+    id: "tr_006",
+    session_id: MOCK_SESSION.id,
+    test_case_id: "TC-006",
+    test_name: "Filter: All todos",
+    description: "Click 'All' filter and verify all items are shown.",
+    category: "Filtering",
+    priority: "Medium",
+    status: "pass",
+    error_message: null,
+    screenshot_path: null,
+    duration_ms: 530,
+    created_at: "2024-06-12T09:16:10Z",
+  },
+  {
+    id: "tr_007",
+    session_id: MOCK_SESSION.id,
+    test_case_id: "TC-007",
+    test_name: "Filter: Active todos",
+    description: "Click 'Active' filter and verify only incomplete items are shown.",
+    category: "Filtering",
+    priority: "Medium",
+    status: "pass",
+    error_message: null,
+    screenshot_path: null,
+    duration_ms: 490,
+    created_at: "2024-06-12T09:16:12Z",
+  },
+  {
+    id: "tr_008",
+    session_id: MOCK_SESSION.id,
+    test_case_id: "TC-008",
+    test_name: "Filter: Active count badge",
+    description: "Verify the item count badge updates correctly when filtering.",
+    category: "Filtering",
+    priority: "Low",
+    status: "fail",
+    error_message: "Expected '3 items left' but received '2 items left'. Count mismatch after toggle.",
+    screenshot_path: "/screenshots/tc-008-fail.png",
+    duration_ms: 1890,
+    created_at: "2024-06-12T09:16:15Z",
+  },
+  {
+    id: "tr_009",
+    session_id: MOCK_SESSION.id,
+    test_case_id: "TC-009",
+    test_name: "Filter: Completed todos",
+    description: "Click 'Completed' filter and verify only done items are shown.",
+    category: "Filtering",
+    priority: "Medium",
+    status: "pass",
+    error_message: null,
+    screenshot_path: null,
+    duration_ms: 510,
+    created_at: "2024-06-12T09:16:18Z",
+  },
+  {
+    id: "tr_010",
+    session_id: MOCK_SESSION.id,
+    test_case_id: "TC-010",
+    test_name: "Clear completed todos",
+    description: "Click 'Clear completed' and verify completed items are removed.",
+    category: "CRUD",
+    priority: "Medium",
+    status: "pass",
+    error_message: null,
+    screenshot_path: null,
+    duration_ms: 680,
+    created_at: "2024-06-12T09:16:20Z",
+  },
+  {
+    id: "tr_011",
+    session_id: MOCK_SESSION.id,
+    test_case_id: "TC-011",
+    test_name: "Toggle all todos",
+    description: "Click the toggle-all checkbox to mark all items complete.",
+    category: "CRUD",
+    priority: "Low",
+    status: "pass",
+    error_message: null,
+    screenshot_path: null,
+    duration_ms: 760,
+    created_at: "2024-06-12T09:16:22Z",
   },
   {
     id: "tr_012",
     session_id: MOCK_SESSION.id,
     test_case_id: "TC-012",
-    test_name: "Keyboard navigation through list",
-    description: "Tab key cycles through todo items and action buttons.",
+    test_name: "Input field ARIA label",
+    description: "Verify the main input has a proper aria-label for screen readers.",
     category: "Accessibility",
     priority: "High",
     status: "pass",
     error_message: null,
     screenshot_path: null,
-    duration_ms: 1870,
-    created_at: "2024-06-12T09:18:55Z",
+    duration_ms: 320,
+    created_at: "2024-06-12T09:16:24Z",
   },
 ];
 
@@ -326,9 +324,9 @@ const MOCK_ARTIFACTS: Artifact[] = [
     session_id: MOCK_SESSION.id,
     artifact_type: "script",
     file_name: "todomvc.spec.ts",
-    storage_path: "/artifacts/todomvc.spec.ts",
+    storage_path: "/artifacts/sess_01hx9z2k3m4n5p6q7r8s9t0u/todomvc.spec.ts",
     mime_type: "text/typescript",
-    size_bytes: 4820,
+    size_bytes: 14336,
     framework: "playwright",
     created_at: "2024-06-12T09:19:40Z",
   },
@@ -336,10 +334,10 @@ const MOCK_ARTIFACTS: Artifact[] = [
     id: "art_002",
     session_id: MOCK_SESSION.id,
     artifact_type: "excel",
-    file_name: "test-cases-todomvc.xlsx",
-    storage_path: "/artifacts/test-cases-todomvc.xlsx",
+    file_name: "test-cases.xlsx",
+    storage_path: "/artifacts/sess_01hx9z2k3m4n5p6q7r8s9t0u/test-cases.xlsx",
     mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    size_bytes: 18240,
+    size_bytes: 28672,
     framework: null,
     created_at: "2024-06-12T09:19:45Z",
   },
@@ -347,120 +345,70 @@ const MOCK_ARTIFACTS: Artifact[] = [
     id: "art_003",
     session_id: MOCK_SESSION.id,
     artifact_type: "bug-report",
-    file_name: "bug-report-todomvc.pdf",
-    storage_path: "/artifacts/bug-report-todomvc.pdf",
+    file_name: "bug-report.pdf",
+    storage_path: "/artifacts/sess_01hx9z2k3m4n5p6q7r8s9t0u/bug-report.pdf",
     mime_type: "application/pdf",
-    size_bytes: 92100,
+    size_bytes: 6144,
     framework: null,
-    created_at: "2024-06-12T09:19:52Z",
-  },
-  {
-    id: "art_004",
-    session_id: MOCK_SESSION.id,
-    artifact_type: "log",
-    file_name: "agent-run.log",
-    storage_path: "/artifacts/agent-run.log",
-    mime_type: "text/plain",
-    size_bytes: 7340,
-    framework: null,
-    created_at: "2024-06-12T09:19:55Z",
+    created_at: "2024-06-12T09:19:50Z",
   },
 ];
 
-const PLAYWRIGHT_SCRIPT = `import { test, expect } from '@playwright/test';
+const MOCK_SCRIPT = `import { test, expect } from '@playwright/test';
 
-const BASE_URL = 'https://demo.playwright.dev/todomvc';
-
-test.describe('TodoMVC — QA Agent AI Generated Suite', () => {
+test.describe('TodoMVC End-to-End Tests', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(BASE_URL);
+    await page.goto('https://demo.playwright.dev/todomvc');
+  });
+
+  test('TC-001: Page loads successfully', async ({ page }) => {
     await expect(page).toHaveTitle(/TodoMVC/);
+    await expect(page.locator('.todoapp')).toBeVisible();
   });
 
-  // TC-001: Add a new todo item
-  test('Add a new todo item', async ({ page }) => {
-    const input = page.locator('.new-todo');
-    await input.fill('Buy groceries');
-    await input.press('Enter');
-    const items = page.locator('.todo-list li');
-    await expect(items).toHaveCount(1);
-    await expect(items.first()).toContainText('Buy groceries');
+  test('TC-002: Add a new todo item', async ({ page }) => {
+    await page.locator('.new-todo').fill('Buy groceries');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.todo-list li')).toHaveCount(1);
+    await expect(page.locator('.todo-list li label')).toHaveText('Buy groceries');
   });
 
-  // TC-002: Mark todo as complete
-  test('Mark todo as complete', async ({ page }) => {
-    const input = page.locator('.new-todo');
-    await input.fill('Read a book');
-    await input.press('Enter');
+  test('TC-003: Mark todo as complete', async ({ page }) => {
+    await page.locator('.new-todo').fill('Write tests');
+    await page.keyboard.press('Enter');
     await page.locator('.todo-list li .toggle').click();
     await expect(page.locator('.todo-list li')).toHaveClass(/completed/);
   });
 
-  // TC-003: Delete a todo item
-  test('Delete a todo item', async ({ page }) => {
-    const input = page.locator('.new-todo');
-    await input.fill('Temporary task');
-    await input.press('Enter');
-    const item = page.locator('.todo-list li').first();
-    await item.hover();
-    await item.locator('.destroy').click();
+  test('TC-004: Delete a todo item', async ({ page }) => {
+    await page.locator('.new-todo').fill('Temporary task');
+    await page.keyboard.press('Enter');
+    await page.locator('.todo-list li').hover();
+    await page.locator('.todo-list li .destroy').click();
     await expect(page.locator('.todo-list li')).toHaveCount(0);
   });
 
-  // TC-004: Edit todo on double-click [FAIL]
-  test('Edit todo on double-click', async ({ page }) => {
+  test('TC-012: Input field ARIA label', async ({ page }) => {
     const input = page.locator('.new-todo');
-    await input.fill('Original text');
-    await input.press('Enter');
-    const item = page.locator('.todo-list li label').first();
-    await item.dblclick();
-    const editInput = page.locator('.todo-list li .edit');
-    await expect(editInput).toBeVisible({ timeout: 5000 });
-    await editInput.fill('Updated text');
-    await editInput.press('Enter');
-    await expect(page.locator('.todo-list li label')).toContainText('Updated text');
+    await expect(input).toHaveAttribute('aria-label', /new todo/i);
   });
-
-  // TC-005: Filter — Show All
-  test('Filter: Show All', async ({ page }) => {
-    const input = page.locator('.new-todo');
-    await input.fill('Task A'); await input.press('Enter');
-    await input.fill('Task B'); await input.press('Enter');
-    await page.locator('.todo-list li .toggle').first().click();
-    await page.locator('.filters a', { hasText: 'All' }).click();
-    await expect(page.locator('.todo-list li')).toHaveCount(2);
-  });
-
-  // TC-008: Active count badge [FAIL]
-  test('Active count badge accuracy', async ({ page }) => {
-    const input = page.locator('.new-todo');
-    for (const t of ['A', 'B', 'C', 'D']) {
-      await input.fill(t); await input.press('Enter');
-    }
-    await page.locator('.todo-list li .toggle').first().click();
-    const badge = page.locator('.todo-count strong');
-    await expect(badge).toHaveText('3');
-  });
-
-  // TC-011: Input field ARIA label
-  test('Input field ARIA label', async ({ page }) => {
-    const input = page.locator('.new-todo');
-    await expect(input).toHaveAttribute('placeholder', 'What needs to be done?');
-  });
-
-  // TC-012: Keyboard navigation
-  test('Keyboard navigation through list', async ({ page }) => {
-    const input = page.locator('.new-todo');
-    await input.fill('Nav test'); await input.press('Enter');
-    await page.keyboard.press('Tab');
-    const focused = page.locator(':focus');
-    await expect(focused).toBeVisible();
-  });
-});`;
+});
+`;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(iso: string) {
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatDate(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -470,515 +418,546 @@ function formatDate(iso: string) {
   });
 }
 
-function formatBytes(bytes: number | null) {
-  if (!bytes) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function getStatusIcon(status: SessionStatus) {
+  switch (status) {
+    case "completed": return <CheckCircle className="w-4 h-4 text-[var(--success)]" />;
+    case "running": return <Activity className="w-4 h-4 text-[var(--accent)] animate-pulse" />;
+    case "error": return <XCircle className="w-4 h-4 text-[var(--destructive)]" />;
+    case "pending": return <Clock className="w-4 h-4 text-[var(--warning)]" />;
+    default: return <Clock className="w-4 h-4 text-[var(--muted-foreground)]" />;
+  }
 }
 
-function formatDuration(ms: number | null) {
-  if (!ms) return "—";
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(2)}s`;
+function getStatusLabel(status: SessionStatus): string {
+  switch (status) {
+    case "completed": return "Completed";
+    case "running": return "Running";
+    case "error": return "Error";
+    case "pending": return "Pending";
+    default: return status;
+  }
 }
 
-// ─── Status Badges ────────────────────────────────────────────────────────────
-
-function SessionStatusBadge({ status }: { status: SessionStatus }) {
-  const map: Record<SessionStatus, { label: string; cls: string }> = {
-    completed: { label: "Completed", cls: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
-    running: { label: "Running", cls: "bg-[var(--accent)]/15 text-[var(--accent)] border-[var(--accent)]/30" },
-    pending: { label: "Pending", cls: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30" },
-    error: { label: "Error", cls: "bg-red-500/15 text-red-400 border-red-500/30" },
-  };
-  const { label, cls } = map[status] ?? map.pending;
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${cls}`}>
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {label}
-    </span>
-  );
+function getStatusColor(status: SessionStatus): string {
+  switch (status) {
+    case "completed": return "text-[var(--success)] bg-[var(--success)]/10 border-[var(--success)]/20";
+    case "running": return "text-[var(--accent)] bg-[var(--accent)]/10 border-[var(--accent)]/20";
+    case "error": return "text-[var(--destructive)] bg-[var(--destructive)]/10 border-[var(--destructive)]/20";
+    case "pending": return "text-[var(--warning)] bg-[var(--warning)]/10 border-[var(--warning)]/20";
+    default: return "text-[var(--muted-foreground)] bg-white/5 border-[var(--border)]";
+  }
 }
 
-function TestStatusIcon({ status }: { status: TestStatus }) {
-  if (status === "pass") return <Check className="h-4 w-4 text-emerald-400" />;
-  if (status === "fail") return <X className="h-4 w-4 text-red-400" />;
-  if (status === "skip") return <Minus className="h-4 w-4 text-yellow-400" />;
-  return <Clock className="h-4 w-4 text-white/40" />;
+function getTestStatusIcon(status: TestStatus) {
+  switch (status) {
+    case "pass": return <Check className="w-3.5 h-3.5 text-[var(--success)]" />;
+    case "fail": return <X className="w-3.5 h-3.5 text-[var(--destructive)]" />;
+    case "skip": return <Minus className="w-3.5 h-3.5 text-[var(--warning)]" />;
+    case "pending": return <Clock className="w-3.5 h-3.5 text-[var(--muted-foreground)]" />;
+    default: return null;
+  }
 }
 
-function StepStatusDot({ status }: { status: StepStatus }) {
-  const cls: Record<StepStatus, string> = {
-    complete: "bg-emerald-400",
-    running: "bg-[var(--accent)] animate-pulse",
-    pending: "bg-white/20",
-    error: "bg-red-400",
-  };
-  return <span className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${cls[status]}`} />;
+function getTestStatusColor(status: TestStatus): string {
+  switch (status) {
+    case "pass": return "text-[var(--success)] bg-[var(--success)]/10 border-[var(--success)]/20";
+    case "fail": return "text-[var(--destructive)] bg-[var(--destructive)]/10 border-[var(--destructive)]/20";
+    case "skip": return "text-[var(--warning)] bg-[var(--warning)]/10 border-[var(--warning)]/20";
+    case "pending": return "text-[var(--muted-foreground)] bg-white/5 border-[var(--border)]";
+    default: return "text-[var(--muted-foreground)] bg-white/5 border-[var(--border)]";
+  }
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function MetaBar({ session }: { session: Session }) {
-  const summary = session.summary as Record<string, number> | null;
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 flex flex-wrap gap-4 items-center justify-between">
-      <div className="flex flex-wrap gap-6">
-        <div className="flex items-center gap-2 text-sm">
-          <Globe className="h-4 w-4 text-[var(--accent)]" />
-          <a
-            href={session.target_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-white/80 hover:text-[var(--accent)] transition-colors underline underline-offset-2 truncate max-w-[260px]"
-          >
-            {session.target_url}
-          </a>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-white/60">
-          <Calendar className="h-4 w-4" />
-          {formatDate(session.created_at)}
-        </div>
-        <div className="flex items-center gap-2 text-sm text-white/60">
-          <Layers className="h-4 w-4" />
-          <span className="capitalize">{session.test_framework}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-white/60">
-          <Settings className="h-4 w-4" />
-          <span className="capitalize">{session.agent_mode}</span>
-        </div>
-      </div>
-      <SessionStatusBadge status={session.status} />
-      {summary && (
-        <div className="flex gap-4 text-sm">
-          <span className="text-emerald-400 font-semibold">{summary.passed} passed</span>
-          <span className="text-red-400 font-semibold">{summary.failed} failed</span>
-          <span className="text-white/40">{formatDuration(summary.duration_ms)}</span>
-        </div>
-      )}
-    </div>
-  );
+function getStepIcon(status: StepStatus) {
+  switch (status) {
+    case "complete": return <CheckCircle className="w-4 h-4 text-[var(--success)]" />;
+    case "running": return <Activity className="w-4 h-4 text-[var(--accent)] animate-pulse" />;
+    case "error": return <AlertCircle className="w-4 h-4 text-[var(--destructive)]" />;
+    case "pending": return <Clock className="w-4 h-4 text-[var(--muted-foreground)]" />;
+    default: return <Clock className="w-4 h-4 text-[var(--muted-foreground)]" />;
+  }
 }
 
-function ChatReplay({ messages }: { messages: Message[] }) {
-  return (
-    <div className="flex flex-col gap-4">
-      {messages.map((msg) => (
-        <motion.div
-          key={msg.id}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-        >
-          {msg.role === "assistant" && (
-            <div className="h-8 w-8 rounded-full bg-[var(--accent)]/20 border border-[var(--accent)]/40 flex items-center justify-center flex-shrink-0 mt-1">
-              <Activity className="h-4 w-4 text-[var(--accent)]" />
-            </div>
-          )}
-          <div
-            className={`max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-              msg.role === "user"
-                ? "bg-[var(--accent)]/20 border border-[var(--accent)]/30 text-white rounded-tr-sm"
-                : "bg-white/5 border border-white/10 text-white/85 rounded-tl-sm"
-            }`}
-          >
-            <p>{msg.content}</p>
-            <p className="mt-1.5 text-xs text-white/30">{formatDate(msg.created_at)}</p>
-          </div>
-          {msg.role === "user" && (
-            <div className="h-8 w-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0 mt-1">
-              <span className="text-xs font-bold text-white/60">U</span>
-            </div>
-          )}
-        </motion.div>
-      ))}
-    </div>
-  );
+function getArtifactIcon(type: string) {
+  switch (type) {
+    case "script": return <Terminal className="w-5 h-5 text-[var(--accent)]" />;
+    case "excel": return <Table className="w-5 h-5 text-emerald-400" />;
+    case "bug-report": return <FileText className="w-5 h-5 text-orange-400" />;
+    default: return <FileText className="w-5 h-5 text-[var(--muted-foreground)]" />;
+  }
 }
 
-type ArtifactTab = "results" | "script" | "excel";
+// ─── Tab type ─────────────────────────────────────────────────────────────────
 
-function ArtifactsPanel({ results, script }: { results: TestResult[]; script: string }) {
-  const [activeTab, setActiveTab] = useState<ArtifactTab>("results");
+type Tab = "overview" | "chat" | "steps" | "results" | "script" | "artifacts";
 
-  const tabs: { id: ArtifactTab; label: string; icon: React.ReactNode }[] = [
-    { id: "results", label: "Test Results", icon: <CheckCircle className="h-4 w-4" /> },
-    { id: "script", label: "Playwright Script", icon: <Terminal className="h-4 w-4" /> },
-    { id: "excel", label: "Excel Preview", icon: <Table className="h-4 w-4" /> },
+// ─── Page Component ───────────────────────────────────────────────────────────
+
+export default function SessionDetailPage() {
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [expandedStep, setExpandedStep] = useState<string | null>(null);
+  const [expandedResult, setExpandedResult] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const codeRef = useRef<HTMLPreElement>(null);
+
+  const session = MOCK_SESSION;
+  const summary = session.summary as {
+    total: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+    duration_ms: number;
+  } | null;
+
+  function handleCopyScript() {
+    navigator.clipboard.writeText(MOCK_SCRIPT).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "overview", label: "Overview", icon: <Layers className="w-4 h-4" /> },
+    { id: "chat", label: "Chat", icon: <Activity className="w-4 h-4" /> },
+    { id: "steps", label: "Agent Steps", icon: <Settings className="w-4 h-4" /> },
+    { id: "results", label: "Test Results", icon: <CheckCircle className="w-4 h-4" /> },
+    { id: "script", label: "Script", icon: <Terminal className="w-4 h-4" /> },
+    { id: "artifacts", label: "Artifacts", icon: <Download className="w-4 h-4" /> },
   ];
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
-      {/* Tab Bar */}
-      <div className="flex border-b border-white/10">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium transition-all duration-200 ${
-              activeTab === tab.id
-                ? "text-[var(--accent)] border-b-2 border-[var(--accent)] bg-[var(--accent)]/5"
-                : "text-white/50 hover:text-white/80"
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Tab Content */}
-      <div className="p-5">
-        {activeTab === "results" && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/10 text-white/40 text-xs uppercase tracking-wider">
-                  <th className="pb-3 text-left font-medium w-8"></th>
-                  <th className="pb-3 text-left font-medium">ID</th>
-                  <th className="pb-3 text-left font-medium">Test Name</th>
-                  <th className="pb-3 text-left font-medium">Category</th>
-                  <th className="pb-3 text-left font-medium">Priority</th>
-                  <th className="pb-3 text-left font-medium">Duration</th>
-                  <th className="pb-3 text-left font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {results.map((r) => (
-                  <tr key={r.id} className="group hover:bg-white/5 transition-colors">
-                    <td className="py-3 pr-2">
-                      <TestStatusIcon status={r.status} />
-                    </td>
-                    <td className="py-3 pr-4 font-mono text-xs text-white/40">{r.test_case_id}</td>
-                    <td className="py-3 pr-4">
-                      <div>
-                        <p className="text-white/90 font-medium">{r.test_name}</p>
-                        {r.error_message && (
-                          <p className="text-red-400/80 text-xs mt-0.5 max-w-xs truncate">{r.error_message}</p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 pr-4 text-white/50">{r.category ?? "—"}</td>
-                    <td className="py-3 pr-4">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full border ${
-                          r.priority === "High"
-                            ? "bg-red-500/10 text-red-400 border-red-500/20"
-                            : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20"
-                        }`}
-                      >
-                        {r.priority}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 font-mono text-xs text-white/50">{formatDuration(r.duration_ms)}</td>
-                    <td className="py-3">
-                      <span
-                        className={`text-xs font-semibold uppercase tracking-wide ${
-                          r.status === "pass"
-                            ? "text-emerald-400"
-                            : r.status === "fail"
-                            ? "text-red-400"
-                            : "text-yellow-400"
-                        }`}
-                      >
-                        {r.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {activeTab === "script" && (
-          <div className="relative">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-white/40 font-mono">todomvc.spec.ts</span>
-                <span className="text-xs bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30 px-2 py-0.5 rounded-full">
-                  Playwright
+    <div className="min-h-screen bg-[var(--background)]">
+      {/* ── Header ── */}
+      <div className="border-b border-[var(--border)] bg-[var(--card)]/40 backdrop-blur-sm sticky top-16 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-start gap-4">
+            <Link
+              href="/history"
+              className="flex items-center gap-1.5 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors mt-0.5 shrink-0"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Link>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-lg font-semibold text-[var(--foreground)] truncate">
+                  {session.title ?? "Untitled Session"}
+                </h1>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                    getStatusColor(session.status as SessionStatus)
+                  }`}
+                >
+                  {getStatusIcon(session.status as SessionStatus)}
+                  {getStatusLabel(session.status as SessionStatus)}
                 </span>
               </div>
-              <div className="flex gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-red-500/60" />
-                <span className="h-3 w-3 rounded-full bg-yellow-500/60" />
-                <span className="h-3 w-3 rounded-full bg-emerald-500/60" />
+              <div className="flex items-center gap-4 mt-1 flex-wrap">
+                <a
+                  href={session.target_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-sm text-[var(--accent)] hover:underline"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  {session.target_url}
+                </a>
+                <span className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+                  <Calendar className="w-3.5 h-3.5" />
+                  {formatDate(session.created_at)}
+                </span>
+                {summary && (
+                  <span className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)]">
+                    <Clock className="w-3.5 h-3.5" />
+                    {formatDuration(summary.duration_ms)}
+                  </span>
+                )}
               </div>
             </div>
-            <pre className="bg-black/40 border border-white/10 rounded-xl p-5 overflow-x-auto text-xs leading-relaxed font-mono text-white/75 max-h-[480px] overflow-y-auto">
-              <code>{script}</code>
-            </pre>
           </div>
-        )}
 
-        {activeTab === "excel" && (
-          <div className="overflow-x-auto">
-            <div className="mb-3 flex items-center gap-2">
-              <FileText className="h-4 w-4 text-emerald-400" />
-              <span className="text-sm text-white/60">test-cases-todomvc.xlsx — Preview (first 8 rows)</span>
-            </div>
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="bg-emerald-600/20 border border-emerald-500/30">
-                  {["Test Case ID", "Test Name", "Description", "Category", "Priority", "Expected Result", "Status", "Duration"].map(
-                    (h) => (
-                      <th
-                        key={h}
-                        className="border border-white/10 px-3 py-2 text-left text-white/70 font-semibold whitespace-nowrap"
-                      >
-                        {h}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {MOCK_RESULTS.slice(0, 8).map((r, i) => (
-                  <tr
-                    key={r.id}
-                    className={`border border-white/5 ${i % 2 === 0 ? "bg-white/3" : "bg-white/[0.015]"} hover:bg-white/8 transition-colors`}
-                  >
-                    <td className="border border-white/5 px-3 py-2 font-mono text-white/50">{r.test_case_id}</td>
-                    <td className="border border-white/5 px-3 py-2 text-white/80 whitespace-nowrap">{r.test_name}</td>
-                    <td className="border border-white/5 px-3 py-2 text-white/50 max-w-[200px] truncate">{r.description}</td>
-                    <td className="border border-white/5 px-3 py-2 text-white/60">{r.category}</td>
-                    <td className="border border-white/5 px-3 py-2">
-                      <span className={r.priority === "High" ? "text-red-400" : "text-yellow-400"}>{r.priority}</span>
-                    </td>
-                    <td className="border border-white/5 px-3 py-2 text-white/50 max-w-[160px] truncate">
-                      {r.description}
-                    </td>
-                    <td className="border border-white/5 px-3 py-2">
-                      <span className={r.status === "pass" ? "text-emerald-400 font-semibold" : "text-red-400 font-semibold"}>
-                        {r.status.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="border border-white/5 px-3 py-2 font-mono text-white/40">{formatDuration(r.duration_ms)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Tabs */}
+          <div className="flex items-center gap-1 mt-4 overflow-x-auto pb-px">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200 ${
+                  activeTab === tab.id
+                    ? "bg-[var(--primary)]/15 text-[var(--foreground)] border border-[var(--primary)]/30"
+                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5"
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
           </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function StepsTimeline({ steps }: { steps: AgentStep[] }) {
-  const [open, setOpen] = useState(true);
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/5 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-[var(--accent)]" />
-          <span className="text-sm font-semibold text-white">Agent Reasoning Steps</span>
-          <span className="text-xs bg-white/10 text-white/50 px-2 py-0.5 rounded-full">{steps.length}</span>
         </div>
-        {open ? <ChevronDown className="h-4 w-4 text-white/40" /> : <ChevronRight className="h-4 w-4 text-white/40" />}
-      </button>
+      </div>
 
-      {open && (
-        <div className="px-5 pb-5">
-          <div className="relative">
-            <div className="absolute left-[5px] top-0 bottom-0 w-px bg-white/10" />
-            <div className="flex flex-col gap-5">
-              {steps.map((step, i) => (
-                <motion.div
-                  key={step.id}
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.07, duration: 0.3 }}
-                  className="flex gap-4 pl-1"
+      {/* ── Content ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Overview Tab */}
+        {activeTab === "overview" && (
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            className="space-y-6"
+          >
+            {/* Stats row */}
+            {summary && (
+              <motion.div variants={fadeInUp} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: "Total Tests", value: summary.total, color: "text-[var(--foreground)]" },
+                  { label: "Passed", value: summary.passed, color: "text-[var(--success)]" },
+                  { label: "Failed", value: summary.failed, color: "text-[var(--destructive)]" },
+                  { label: "Skipped", value: summary.skipped, color: "text-[var(--warning)]" },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 text-center"
+                  >
+                    <div className={`text-3xl font-bold ${stat.color}`}>{stat.value}</div>
+                    <div className="text-xs text-[var(--muted-foreground)] mt-1">{stat.label}</div>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+
+            {/* Session info */}
+            <motion.div
+              variants={fadeInUp}
+              className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6"
+            >
+              <h2 className="text-sm font-semibold text-[var(--foreground)] mb-4">Session Details</h2>
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { label: "Session ID", value: session.id },
+                  { label: "Agent Mode", value: session.agent_mode },
+                  { label: "Framework", value: session.test_framework },
+                  { label: "Output Types", value: session.output_types.join(", ") },
+                  { label: "Created", value: formatDate(session.created_at) },
+                  { label: "Updated", value: formatDate(session.updated_at) },
+                ].map((item) => (
+                  <div key={item.label}>
+                    <dt className="text-xs text-[var(--muted-foreground)] mb-0.5">{item.label}</dt>
+                    <dd className="text-sm text-[var(--foreground)] font-mono break-all">{item.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </motion.div>
+
+            {/* Pass rate bar */}
+            {summary && summary.total > 0 && (
+              <motion.div
+                variants={fadeInUp}
+                className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold text-[var(--foreground)]">Pass Rate</h2>
+                  <span className="text-sm font-bold text-[var(--success)]">
+                    {Math.round((summary.passed / summary.total) * 100)}%
+                  </span>
+                </div>
+                <div className="h-2 bg-[var(--border)] rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-[var(--success)] rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(summary.passed / summary.total) * 100}%` }}
+                    transition={{ duration: 0.8, ease: "easeOut", delay: 0.3 }}
+                  />
+                </div>
+                <div className="flex items-center gap-4 mt-3 text-xs text-[var(--muted-foreground)]">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-[var(--success)]" />
+                    {summary.passed} passed
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-[var(--destructive)]" />
+                    {summary.failed} failed
+                  </span>
+                  {summary.skipped > 0 && (
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-[var(--warning)]" />
+                      {summary.skipped} skipped
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+
+        {/* Chat Tab */}
+        {activeTab === "chat" && (
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            className="space-y-4 max-w-3xl"
+          >
+            {MOCK_MESSAGES.map((msg) => (
+              <motion.div
+                key={msg.id}
+                variants={fadeInUp}
+                className={`flex gap-3 ${
+                  msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                }`}
+              >
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold ${
+                    msg.role === "user"
+                      ? "bg-[var(--primary)] text-white"
+                      : "bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/30"
+                  }`}
                 >
-                  <StepStatusDot status={step.status} />
+                  {msg.role === "user" ? "U" : "AI"}
+                </div>
+                <div
+                  className={`max-w-[80%] rounded-xl px-4 py-3 text-sm leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-[var(--primary)]/15 border border-[var(--primary)]/20 text-[var(--foreground)]"
+                      : "bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)]"
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  <p className="text-[10px] text-[var(--muted-foreground)] mt-2">
+                    {formatDate(msg.created_at)}
+                  </p>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+
+        {/* Steps Tab */}
+        {activeTab === "steps" && (
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            className="space-y-3 max-w-3xl"
+          >
+            {MOCK_STEPS.map((step) => (
+              <motion.div
+                key={step.id}
+                variants={fadeInUp}
+                className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden"
+              >
+                <button
+                  onClick={() =>
+                    setExpandedStep(expandedStep === step.id ? null : step.id)
+                  }
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
+                >
+                  {getStepIcon(step.status as StepStatus)}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium text-white/90">{step.title}</p>
-                      <span className="text-xs text-white/30 font-mono capitalize bg-white/5 px-2 py-0.5 rounded">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[var(--muted-foreground)] font-mono">
+                        Step {step.step_index + 1}
+                      </span>
+                      <span className="text-xs text-[var(--muted-foreground)] uppercase tracking-wide">
                         {step.step_type}
                       </span>
                     </div>
-                    {step.detail && <p className="text-xs text-white/50 mt-0.5 leading-relaxed">{step.detail}</p>}
-                    <div className="flex gap-3 mt-1 text-xs text-white/25">
-                      <span>Started {formatDate(step.created_at)}</span>
-                      {step.completed_at && <span>Done {formatDate(step.completed_at)}</span>}
+                    <p className="text-sm font-medium text-[var(--foreground)] truncate">
+                      {step.title}
+                    </p>
+                  </div>
+                  {step.completed_at && (
+                    <span className="text-xs text-[var(--muted-foreground)] shrink-0">
+                      {formatDuration(
+                        new Date(step.completed_at).getTime() -
+                          new Date(step.created_at).getTime()
+                      )}
+                    </span>
+                  )}
+                  {expandedStep === step.id ? (
+                    <ChevronDown className="w-4 h-4 text-[var(--muted-foreground)] shrink-0" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-[var(--muted-foreground)] shrink-0" />
+                  )}
+                </button>
+                {expandedStep === step.id && step.detail && (
+                  <div className="px-4 pb-4 pt-0 border-t border-[var(--border)]">
+                    <p className="text-sm text-[var(--muted-foreground)] mt-3 leading-relaxed">
+                      {step.detail}
+                    </p>
+                    {step.completed_at && (
+                      <p className="text-xs text-[var(--muted-foreground)] mt-2">
+                        Completed: {formatDate(step.completed_at)}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+
+        {/* Results Tab */}
+        {activeTab === "results" && (
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            className="space-y-2"
+          >
+            {MOCK_RESULTS.map((result) => (
+              <motion.div
+                key={result.id}
+                variants={fadeInUp}
+                className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden"
+              >
+                <button
+                  onClick={() =>
+                    setExpandedResult(expandedResult === result.id ? null : result.id)
+                  }
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
+                >
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 ${
+                      getTestStatusColor(result.status as TestStatus)
+                    }`}
+                  >
+                    {getTestStatusIcon(result.status as TestStatus)}
+                    {result.status.toUpperCase()}
+                  </span>
+                  <span className="text-xs text-[var(--muted-foreground)] font-mono shrink-0">
+                    {result.test_case_id}
+                  </span>
+                  <span className="text-sm text-[var(--foreground)] flex-1 truncate">
+                    {result.test_name}
+                  </span>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {result.category && (
+                      <span className="hidden sm:inline text-xs text-[var(--muted-foreground)] bg-white/5 px-2 py-0.5 rounded">
+                        {result.category}
+                      </span>
+                    )}
+                    {result.duration_ms !== null && (
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {formatDuration(result.duration_ms)}
+                      </span>
+                    )}
+                    {expandedResult === result.id ? (
+                      <ChevronDown className="w-4 h-4 text-[var(--muted-foreground)]" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-[var(--muted-foreground)]" />
+                    )}
+                  </div>
+                </button>
+                {expandedResult === result.id && (
+                  <div className="px-4 pb-4 pt-0 border-t border-[var(--border)]">
+                    {result.description && (
+                      <p className="text-sm text-[var(--muted-foreground)] mt-3 leading-relaxed">
+                        {result.description}
+                      </p>
+                    )}
+                    {result.error_message && (
+                      <div className="mt-3 p-3 bg-[var(--destructive)]/10 border border-[var(--destructive)]/20 rounded-lg">
+                        <div className="flex items-center gap-2 mb-1">
+                          <AlertCircle className="w-3.5 h-3.5 text-[var(--destructive)]" />
+                          <span className="text-xs font-semibold text-[var(--destructive)]">Error</span>
+                        </div>
+                        <p className="text-xs text-[var(--destructive)]/80 font-mono leading-relaxed">
+                          {result.error_message}
+                        </p>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-4 mt-3 text-xs text-[var(--muted-foreground)]">
+                      {result.priority && <span>Priority: {result.priority}</span>}
+                      {result.category && <span>Category: {result.category}</span>}
                     </div>
                   </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                )}
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
 
-function DownloadPanel({ artifacts }: { artifacts: Artifact[] }) {
-  const iconMap: Record<string, React.ReactNode> = {
-    script: <Terminal className="h-5 w-5 text-[var(--accent)]" />,
-    excel: <Table className="h-5 w-5 text-emerald-400" />,
-    "bug-report": <AlertCircle className="h-5 w-5 text-red-400" />,
-    log: <FileText className="h-5 w-5 text-white/50" />,
-  };
-
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Download className="h-4 w-4 text-[var(--accent)]" />
-        <h3 className="text-sm font-semibold text-white">Download Artifacts</h3>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {artifacts.map((art) => (
-          <motion.button
-            key={art.id}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/5 transition-all duration-200 group"
+        {/* Script Tab */}
+        {activeTab === "script" && (
+          <motion.div
+            variants={scaleIn}
+            initial="hidden"
+            animate="visible"
+            className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden"
           >
-            {iconMap[art.artifact_type] ?? <FileText className="h-5 w-5 text-white/40" />}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white/90 truncate group-hover:text-white transition-colors">
-                {art.file_name}
-              </p>
-              <p className="text-xs text-white/35">{formatBytes(art.size_bytes)}</p>
-            </div>
-            <Download className="h-4 w-4 text-white/25 group-hover:text-[var(--accent)] transition-colors flex-shrink-0" />
-          </motion.button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SummaryStats({ summary }: { summary: Record<string, number> | null }) {
-  if (!summary) return null;
-  const total = summary.total ?? 0;
-  const passed = summary.passed ?? 0;
-  const failed = summary.failed ?? 0;
-  const passRate = total > 0 ? Math.round((passed / total) * 100) : 0;
-
-  const stats = [
-    { label: "Total Tests", value: String(total), icon: <Layers className="h-5 w-5" />, cls: "text-white/80" },
-    { label: "Passed", value: String(passed), icon: <CheckCircle className="h-5 w-5" />, cls: "text-emerald-400" },
-    { label: "Failed", value: String(failed), icon: <XCircle className="h-5 w-5" />, cls: "text-red-400" },
-    { label: "Pass Rate", value: `${passRate}%`, icon: <Activity className="h-5 w-5" />, cls: "text-[var(--accent)]" },
-  ];
-
-  return (
-    <motion.div
-      variants={staggerContainer}
-      initial="hidden"
-      animate="visible"
-      className="grid grid-cols-2 sm:grid-cols-4 gap-3"
-    >
-      {stats.map((s) => (
-        <motion.div
-          key={s.label}
-          variants={scaleIn}
-          className="rounded-xl border border-white/10 bg-white/5 p-4 text-center"
-        >
-          <div className={`flex justify-center mb-1 ${s.cls}`}>{s.icon}</div>
-          <div className={`text-2xl font-bold ${s.cls}`}>{s.value}</div>
-          <div className="text-xs text-white/40 mt-0.5">{s.label}</div>
-        </motion.div>
-      ))}
-    </motion.div>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default function SessionDetailPage() {
-  const session = MOCK_SESSION;
-  const summary = session.summary as Record<string, number> | null;
-
-  return (
-    <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-
-        {/* Breadcrumb */}
-        <Reveal>
-          <nav className="flex items-center gap-2 text-sm text-white/40">
-            <Link href="/history" className="flex items-center gap-1.5 hover:text-[var(--accent)] transition-colors">
-              <ArrowLeft className="h-4 w-4" />
-              History
-            </Link>
-            <ChevronRight className="h-3.5 w-3.5" />
-            <span className="text-white/70 truncate max-w-[300px]">{session.title ?? session.target_url}</span>
-          </nav>
-        </Reveal>
-
-        {/* Page Title */}
-        <Reveal delay={0.05}>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white">
-                {session.title ?? "Session Detail"}
-              </h1>
-              <p className="text-sm text-white/45 mt-1 font-mono">{session.id}</p>
-            </div>
-            <SessionStatusBadge status={session.status} />
-          </div>
-        </Reveal>
-
-        {/* Meta Bar */}
-        <Reveal delay={0.08}>
-          <MetaBar session={session} />
-        </Reveal>
-
-        {/* Summary Stats */}
-        <Reveal delay={0.1}>
-          <SummaryStats summary={summary} />
-        </Reveal>
-
-        {/* Main Grid: Chat + Steps */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Chat Replay */}
-          <Reveal className="lg:col-span-2" delay={0.12}>
-            <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 h-full">
-              <div className="flex items-center gap-2 mb-5">
-                <Activity className="h-4 w-4 text-[var(--accent)]" />
-                <h2 className="text-sm font-semibold text-white">Chat Replay</h2>
-                <span className="text-xs bg-white/10 text-white/50 px-2 py-0.5 rounded-full">
-                  {MOCK_MESSAGES.length} messages
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-[var(--accent)]" />
+                <span className="text-sm font-medium text-[var(--foreground)]">todomvc.spec.ts</span>
+                <span className="text-xs text-[var(--muted-foreground)] bg-white/5 px-2 py-0.5 rounded">
+                  Playwright
                 </span>
               </div>
-              <ChatReplay messages={MOCK_MESSAGES} />
+              <button
+                onClick={handleCopyScript}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 hover:bg-[var(--primary)]/25 transition-colors"
+              >
+                {copied ? (
+                  <><Check className="w-3.5 h-3.5" /> Copied!</>
+                ) : (
+                  <><Download className="w-3.5 h-3.5" /> Copy</>
+                )}
+              </button>
             </div>
-          </Reveal>
+            <pre
+              ref={codeRef}
+              className="p-4 text-xs font-mono text-[var(--foreground)] overflow-x-auto leading-relaxed max-h-[600px] overflow-y-auto"
+            >
+              <code>{MOCK_SCRIPT}</code>
+            </pre>
+          </motion.div>
+        )}
 
-          {/* Steps Timeline */}
-          <Reveal delay={0.15}>
-            <StepsTimeline steps={MOCK_STEPS} />
-          </Reveal>
-        </div>
-
-        {/* Artifacts Panel */}
-        <Reveal delay={0.18}>
-          <div>
-            <h2 className="text-base font-semibold text-white mb-3 flex items-center gap-2">
-              <FileText className="h-4 w-4 text-[var(--accent)]" />
-              Artifacts
-            </h2>
-            <ArtifactsPanel results={MOCK_RESULTS} script={PLAYWRIGHT_SCRIPT} />
-          </div>
-        </Reveal>
-
-        {/* Download Panel */}
-        <Reveal delay={0.2}>
-          <DownloadPanel artifacts={MOCK_ARTIFACTS} />
-        </Reveal>
-
+        {/* Artifacts Tab */}
+        {activeTab === "artifacts" && (
+          <motion.div
+            variants={staggerContainer}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          >
+            {MOCK_ARTIFACTS.map((artifact) => (
+              <motion.div
+                key={artifact.id}
+                variants={scaleIn}
+                className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5 flex flex-col gap-4 hover:border-[var(--primary)]/40 transition-colors group"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 rounded-lg bg-[var(--background)] border border-[var(--border)] group-hover:border-[var(--primary)]/30 transition-colors">
+                    {getArtifactIcon(artifact.artifact_type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[var(--foreground)] truncate">
+                      {artifact.file_name}
+                    </p>
+                    <p className="text-xs text-[var(--muted-foreground)] mt-0.5 capitalize">
+                      {artifact.artifact_type.replace("-", " ")}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+                  <span>{artifact.size_bytes ? formatBytes(artifact.size_bytes) : "—"}</span>
+                  {artifact.framework && (
+                    <span className="bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/20 px-2 py-0.5 rounded-full capitalize">
+                      {artifact.framework}
+                    </span>
+                  )}
+                </div>
+                <button className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-colors">
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                </button>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
       </div>
-    </main>
+    </div>
   );
 }

@@ -7,13 +7,11 @@ import { Search, Filter, Calendar, CheckCircle, XCircle, Clock, AlertCircle, Che
 import Link from "next/link";
 import { Reveal } from "@/components/Reveal";
 import { cn } from "@/lib/utils";
-import type, { Session } from "@/lib/data";
-type SessionStatus = any;
-const SessionStatus: any = [];
-type TestFramework = any;
-const TestFramework: any = [];
-type AgentMode = any;
-const AgentMode: any = [];
+import { type Session } from "@/lib/data";
+
+type SessionStatus = "completed" | "running" | "error" | "pending";
+type TestFramework = "playwright" | "cypress" | "both";
+type AgentMode = "autonomous" | "hybrid" | "instruction-driven";
 
 // ─── Mock Data ───────────────────────────────────────────────────────────────
 
@@ -145,32 +143,21 @@ const MOCK_SESSIONS: (Session & {
   },
   {
     id: "sess_08",
-    target_url: "https://atlassian.com/jira",
-    title: "Jira Project Management Flow",
+    target_url: "https://atlassian.com",
+    title: "Atlassian Jira Smoke Test",
     agent_mode: "hybrid",
     test_framework: "playwright",
     output_types: ["script", "excel"],
     status: "completed",
     summary: null,
-    created_at: "2025-01-10T13:45:00Z",
-    updated_at: "2025-01-10T14:22:00Z",
+    created_at: "2025-01-10T13:00:00Z",
+    updated_at: "2025-01-10T13:29:00Z",
     pass_count: 22,
-    fail_count: 4,
-    skip_count: 2,
-    total_tests: 28,
-    duration_ms: 222000,
+    fail_count: 0,
+    skip_count: 0,
+    total_tests: 22,
+    duration_ms: 174000,
   },
-];
-
-const DATE_FILTERS = ["All time", "Today", "Last 7 days", "Last 30 days"] as const;
-type DateFilter = (typeof DATE_FILTERS)[number];
-
-const STATUS_OPTIONS: { value: SessionStatus | "all"; label: string }[] = [
-  { value: "all", label: "All statuses" },
-  { value: "completed", label: "Completed" },
-  { value: "running", label: "Running" },
-  { value: "error", label: "Error" },
-  { value: "pending", label: "Pending" },
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -178,567 +165,309 @@ const STATUS_OPTIONS: { value: SessionStatus | "all"; label: string }[] = [
 function formatDuration(ms: number): string {
   if (ms === 0) return "—";
   const s = Math.floor(ms / 1000);
-  if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
   const rem = s % 60;
-  return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
+  return m > 0 ? `${m}m ${rem}s` : `${s}s`;
 }
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function getHostname(url: string): string {
-  try {
-    return new URL(url).hostname.replace("www.", "");
-  } catch {
-    return url;
-  }
-}
-
-function isToday(iso: string): boolean {
+function formatTime(iso: string): string {
   const d = new Date(iso);
-  const now = new Date();
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  );
+  return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 }
 
-function isWithinDays(iso: string, days: number): boolean {
-  const d = new Date(iso);
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  return d >= cutoff;
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-const statusConfig: Record<
+const STATUS_CONFIG: Record<
   SessionStatus,
-  { label: string; color: string; glow: string; icon: React.ReactNode }
+  { label: string; icon: React.ElementType; color: string; bg: string; border: string }
 > = {
   completed: {
     label: "Completed",
-    color: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
-    glow: "shadow-[0_0_12px_rgba(52,211,153,0.25)]",
-    icon: <CheckCircle className="h-3.5 w-3.5" />,
+    icon: CheckCircle,
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-500/20",
   },
   running: {
     label: "Running",
-    color: "text-blue-400 bg-blue-400/10 border-blue-400/30",
-    glow: "shadow-[0_0_12px_rgba(96,165,250,0.25)]",
-    icon: <Activity className="h-3.5 w-3.5" />,
+    icon: Activity,
+    color: "text-[var(--accent)]",
+    bg: "bg-[var(--accent)]/10",
+    border: "border-[var(--accent)]/20",
   },
   error: {
     label: "Error",
-    color: "text-red-400 bg-red-400/10 border-red-400/30",
-    glow: "shadow-[0_0_12px_rgba(248,113,113,0.25)]",
-    icon: <AlertCircle className="h-3.5 w-3.5" />,
+    icon: XCircle,
+    color: "text-[var(--destructive)]",
+    bg: "bg-[var(--destructive)]/10",
+    border: "border-[var(--destructive)]/20",
   },
   pending: {
     label: "Pending",
-    color: "text-amber-400 bg-amber-400/10 border-amber-400/30",
-    glow: "shadow-[0_0_12px_rgba(251,191,36,0.2)]",
-    icon: <Clock className="h-3.5 w-3.5" />,
+    icon: Clock,
+    color: "text-amber-400",
+    bg: "bg-amber-500/10",
+    border: "border-amber-500/20",
   },
 };
 
-const frameworkConfig: Record<TestFramework, { label: string; color: string }> = {
-  playwright: { label: "Playwright", color: "text-violet-400 bg-violet-400/10 border-violet-400/30" },
-  cypress: { label: "Cypress", color: "text-teal-400 bg-teal-400/10 border-teal-400/30" },
-  both: { label: "PW + Cypress", color: "text-orange-400 bg-orange-400/10 border-orange-400/30" },
+const FRAMEWORK_LABELS: Record<string, string> = {
+  playwright: "Playwright",
+  cypress: "Cypress",
+  both: "Both",
 };
 
-const agentModeLabel: Record<AgentMode, string> = {
+const AGENT_MODE_LABELS: Record<string, string> = {
   autonomous: "Autonomous",
   hybrid: "Hybrid",
-  "instruction-driven": "Instructed",
+  "instruction-driven": "Instruction-driven",
 };
 
-const artifactIcons: Record<string, React.ReactNode> = {
-  script: <FileCode className="h-3.5 w-3.5" />,
-  excel: <FileText className="h-3.5 w-3.5" />,
-  "bug-report": <AlertCircle className="h-3.5 w-3.5" />,
-  log: <Activity className="h-3.5 w-3.5" />,
+const OUTPUT_ICONS: Record<string, React.ElementType> = {
+  script: FileCode,
+  excel: FileText,
+  "bug-report": AlertCircle,
+  log: FileText,
 };
 
-// ─── Session Card ─────────────────────────────────────────────────────────────
+// ─── Card variants ────────────────────────────────────────────────────────────
 
 const cardVariants: Variants = {
   hidden: { opacity: 0, y: 16 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
 };
 
-interface SessionCardProps {
-  session: (typeof MOCK_SESSIONS)[number];
+const listVariants: Variants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+};
+
+// ─── Session Card ─────────────────────────────────────────────────────────────
+
+type MockSession = Session & {
+  pass_count: number;
+  fail_count: number;
+  skip_count: number;
+  total_tests: number;
+  duration_ms: number;
+};
+
+function SessionCard({
+  session,
+  selected,
+  onSelect,
+  onDelete,
+}: {
+  session: MockSession;
   selected: boolean;
   onSelect: (id: string) => void;
-  onOpen: (id: string) => void;
-  selectMode: boolean;
-}
-
-function SessionCard({ session, selected, onSelect, onOpen, selectMode }: SessionCardProps) {
-  const cfg = statusConfig[session.status];
-  const fw = frameworkConfig[session.test_framework];
+  onDelete: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const status = (session.status as SessionStatus) in STATUS_CONFIG
+    ? (session.status as SessionStatus)
+    : "pending";
+  const cfg = STATUS_CONFIG[status];
+  const StatusIcon = cfg.icon;
   const passRate =
     session.total_tests > 0
       ? Math.round((session.pass_count / session.total_tests) * 100)
-      : null;
+      : 0;
 
   return (
     <motion.div
       variants={cardVariants}
-      whileHover={{ y: -3, transition: { duration: 0.2 } }}
-      onClick={() => (selectMode ? onSelect(session.id) : onOpen(session.id))}
       className={cn(
-        "group relative cursor-pointer rounded-2xl border bg-[hsl(var(--card))] p-5 transition-all duration-300",
-        "shadow-[0_1px_2px_rgba(0,0,0,0.08),0_4px_16px_-4px_rgba(0,0,0,0.16)]",
-        "hover:shadow-[0_2px_4px_rgba(0,0,0,0.1),0_12px_32px_-8px_rgba(0,0,0,0.24)]",
-        selected
-          ? "border-[var(--accent)] ring-1 ring-[var(--accent)]/40"
-          : "border-[hsl(var(--border))] hover:border-[var(--accent)]/40",
+        "rounded-xl border transition-all duration-200",
+        "bg-[var(--card)] border-[var(--border)]",
+        selected && "ring-2 ring-[var(--primary)]/60",
+        "shadow-[0_1px_3px_rgba(0,0,0,0.3),0_4px_16px_-4px_rgba(0,0,0,0.4)]"
       )}
     >
-      {/* Select checkbox */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect(session.id);
-        }}
-        aria-label={selected ? "Deselect session" : "Select session"}
-        className={cn(
-          "absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-md border transition-all duration-200",
-          selected
-            ? "border-[var(--accent)] bg-[var(--accent)] text-black"
-            : "border-[hsl(var(--border))] bg-transparent opacity-0 group-hover:opacity-100",
-        )}
-      >
-        {selected && <Check className="h-3 w-3" />}
-      </button>
-
-      {/* Header */}
-      <div className="flex items-start gap-3 pr-8">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--accent)]/10 text-[var(--accent)]">
-          <Globe className="h-4.5 w-4.5 h-[18px] w-[18px]" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-[hsl(var(--foreground))]">
-            {session.title ?? getHostname(session.target_url)}
-          </p>
-          <p className="mt-0.5 truncate text-xs text-[hsl(var(--muted-foreground))]">
-            {getHostname(session.target_url)}
-          </p>
-        </div>
-      </div>
-
-      {/* Status + Framework badges */}
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <span
+      {/* Card header */}
+      <div className="flex items-start gap-3 p-4">
+        {/* Checkbox */}
+        <button
+          onClick={() => onSelect(session.id)}
           className={cn(
-            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-            cfg.color,
-            cfg.glow,
+            "mt-0.5 flex-shrink-0 w-5 h-5 rounded border transition-colors",
+            selected
+              ? "bg-[var(--primary)] border-[var(--primary)] text-white"
+              : "border-[var(--border)] hover:border-[var(--primary)]/60"
           )}
+          aria-label={selected ? "Deselect session" : "Select session"}
         >
-          {cfg.icon}
-          {cfg.label}
-        </span>
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-            fw.color,
-          )}
-        >
-          {fw.label}
-        </span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/40 px-2 py-0.5 text-xs text-[hsl(var(--muted-foreground))]">
-          {agentModeLabel[session.agent_mode]}
-        </span>
-      </div>
+          {selected && <Check className="w-3 h-3 m-auto" />}
+        </button>
 
-      {/* Pass/Fail bar */}
-      {session.total_tests > 0 && (
-        <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between text-xs">
-            <span className="text-[hsl(var(--muted-foreground))]">
-              {session.pass_count} pass / {session.fail_count} fail
-            </span>
-            {passRate !== null && (
-              <span
-                className={cn(
-                  "font-semibold",
-                  passRate >= 90
-                    ? "text-emerald-400"
-                    : passRate >= 70
-                    ? "text-amber-400"
-                    : "text-red-400",
-                )}
-              >
-                {passRate}%
-              </span>
-            )}
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-[hsl(var(--muted))]/40">
-            <div
-              className="h-full rounded-full bg-emerald-400 transition-all duration-500"
-              style={{ width: `${passRate ?? 0}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Artifacts */}
-      {session.output_types.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1">
-          {session.output_types.map((type) => (
-            <span
-              key={type}
-              className="inline-flex items-center gap-1 rounded-md bg-[hsl(var(--muted))]/30 px-1.5 py-0.5 text-xs text-[hsl(var(--muted-foreground))]"
-            >
-              {artifactIcons[type] ?? null}
-              {type}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="mt-3 flex items-center justify-between border-t border-[hsl(var(--border))]/50 pt-3">
-        <span className="flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]">
-          <Calendar className="h-3 w-3" />
-          {formatDate(session.created_at)}
-        </span>
-        <span className="flex items-center gap-1 text-xs text-[hsl(var(--muted-foreground))]">
-          <Clock className="h-3 w-3" />
-          {formatDuration(session.duration_ms)}
-        </span>
-      </div>
-
-      {/* View detail link */}
-      <Link
-        href={`/session/${session.id}`}
-        onClick={(e) => e.stopPropagation()}
-        className="absolute bottom-4 right-4 hidden items-center gap-1 rounded-lg bg-[var(--accent)]/10 px-2 py-1 text-xs font-medium text-[var(--accent)] opacity-0 transition-all duration-200 group-hover:flex group-hover:opacity-100 hover:bg-[var(--accent)]/20"
-        aria-label="View session detail"
-      >
-        <Eye className="h-3 w-3" />
-        View
-      </Link>
-    </motion.div>
-  );
-}
-
-// ─── Session Preview Drawer ───────────────────────────────────────────────────
-
-const drawerVariants: Variants = {
-  hidden: { opacity: 0, x: 40 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.35, ease: "easeOut" } },
-};
-
-function SessionDrawer({
-  session,
-  onClose,
-}: {
-  session: (typeof MOCK_SESSIONS)[number] | null;
-  onClose: () => void;
-}) {
-  if (!session) return null;
-  const cfg = statusConfig[session.status];
-  const fw = frameworkConfig[session.test_framework];
-
-  return (
-    <AnimatePresence>
-      {session && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-          />
-          {/* Drawer */}
-          <motion.aside
-            key="drawer"
-            variants={drawerVariants}
-            initial="hidden"
-            animate="visible"
-            exit="hidden"
-            className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col border-l border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-2xl"
-          >
-            {/* Drawer header */}
-            <div className="flex items-center justify-between border-b border-[hsl(var(--border))] px-6 py-4">
-              <div>
-                <h2 className="text-base font-semibold text-[hsl(var(--foreground))]">
-                  Session Preview
-                </h2>
-                <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
-                  {session.id}
-                </p>
-              </div>
-              <button
-                onClick={onClose}
-                aria-label="Close preview"
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))]/40 hover:text-[hsl(var(--foreground))]"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Drawer body */}
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              {/* URL */}
-              <div>
-                <p className="mb-1 text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                  Target URL
-                </p>
-                <a
-                  href={session.target_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--accent)] hover:underline"
-                >
+        {/* Main info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div className="min-w-0">
+              <h3 className="font-semibold text-[var(--foreground)] text-sm truncate">
+                {session.title ?? "Untitled Session"}
+              </h3>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Globe className="w-3 h-3 text-[var(--muted-foreground)] flex-shrink-0" />
+                <span className="text-xs text-[var(--muted-foreground)] truncate">
                   {session.target_url}
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+                </span>
               </div>
+            </div>
 
-              {/* Status + Framework */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-                  <p className="mb-1.5 text-xs text-[hsl(var(--muted-foreground))]">Status</p>
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-                      cfg.color,
-                    )}
-                  >
-                    {cfg.icon}
-                    {cfg.label}
-                  </span>
-                </div>
-                <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3">
-                  <p className="mb-1.5 text-xs text-[hsl(var(--muted-foreground))]">Framework</p>
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium",
-                      fw.color,
-                    )}
-                  >
-                    {fw.label}
-                  </span>
-                </div>
-              </div>
-
-              {/* Stats */}
-              {session.total_tests > 0 && (
-                <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                    Test Results
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { label: "Passed", value: session.pass_count, color: "text-emerald-400" },
-                      { label: "Failed", value: session.fail_count, color: "text-red-400" },
-                      { label: "Skipped", value: session.skip_count, color: "text-amber-400" },
-                    ].map((stat) => (
-                      <div
-                        key={stat.label}
-                        className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 text-center"
-                      >
-                        <p className={cn("text-xl font-bold", stat.color)}>{stat.value}</p>
-                        <p className="mt-0.5 text-xs text-[hsl(var(--muted-foreground))]">
-                          {stat.label}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            {/* Status badge */}
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0",
+                cfg.bg,
+                cfg.color,
+                cfg.border
               )}
+            >
+              <StatusIcon className="w-3 h-3" />
+              {cfg.label}
+            </span>
+          </div>
 
-              {/* Meta */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                  Details
-                </p>
-                {[
-                  { label: "Agent Mode", value: agentModeLabel[session.agent_mode] },
-                  { label: "Duration", value: formatDuration(session.duration_ms) },
-                  { label: "Created", value: formatDate(session.created_at) },
-                  { label: "Updated", value: formatDate(session.updated_at) },
-                ].map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-center justify-between rounded-lg border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))]/50 px-3 py-2"
-                  >
-                    <span className="text-xs text-[hsl(var(--muted-foreground))]">{row.label}</span>
-                    <span className="text-xs font-medium text-[hsl(var(--foreground))]">
-                      {row.value}
+          {/* Meta row */}
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            <span className="flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
+              <Calendar className="w-3 h-3" />
+              {formatDate(session.created_at)} · {formatTime(session.created_at)}
+            </span>
+            <span className="flex items-center gap-1 text-xs text-[var(--muted-foreground)]">
+              <Clock className="w-3 h-3" />
+              {formatDuration(session.duration_ms)}
+            </span>
+            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20">
+              {FRAMEWORK_LABELS[session.test_framework] ?? session.test_framework}
+            </span>
+            <span className="text-xs px-1.5 py-0.5 rounded bg-white/5 text-[var(--muted-foreground)] border border-[var(--border)]">
+              {AGENT_MODE_LABELS[session.agent_mode] ?? session.agent_mode}
+            </span>
+          </div>
+
+          {/* Test counts */}
+          {session.total_tests > 0 && (
+            <div className="flex items-center gap-3 mt-2">
+              <span className="text-xs text-emerald-400">{session.pass_count} passed</span>
+              {session.fail_count > 0 && (
+                <span className="text-xs text-[var(--destructive)]">{session.fail_count} failed</span>
+              )}
+              {session.skip_count > 0 && (
+                <span className="text-xs text-amber-400">{session.skip_count} skipped</span>
+              )}
+              <span className="text-xs text-[var(--muted-foreground)]">{session.total_tests} total</span>
+              {/* Pass rate bar */}
+              <div className="flex-1 max-w-[80px] h-1.5 rounded-full bg-[var(--border)] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+                  style={{ width: `${passRate}%` }}
+                />
+              </div>
+              <span className="text-xs text-[var(--muted-foreground)]">{passRate}%</span>
+            </div>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <Link
+            href={`/session/${session.id}`}
+            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5 transition-colors"
+            aria-label="View session"
+          >
+            <Eye className="w-4 h-4" />
+          </Link>
+          <button
+            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5 transition-colors"
+            aria-label="Download artifacts"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onDelete(session.id)}
+            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--destructive)] hover:bg-[var(--destructive)]/10 transition-colors"
+            aria-label="Delete session"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5 transition-colors"
+            aria-label={expanded ? "Collapse" : "Expand"}
+          >
+            {expanded ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded: output types */}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            key="expanded"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 pt-0 border-t border-[var(--border)] mt-0">
+              <p className="text-xs text-[var(--muted-foreground)] mt-3 mb-2 font-medium uppercase tracking-wide">
+                Artifacts
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {session.output_types.map((type) => {
+                  const Icon = OUTPUT_ICONS[type] ?? FileText;
+                  return (
+                    <span
+                      key={type}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-white/5 text-[var(--muted-foreground)] border border-[var(--border)] hover:text-[var(--foreground)] transition-colors cursor-default"
+                    >
+                      <Icon className="w-3 h-3" />
+                      {type === "script"
+                        ? "Test Script"
+                        : type === "excel"
+                        ? "Excel Sheet"
+                        : type === "bug-report"
+                        ? "Bug Report"
+                        : "Run Log"}
                     </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-
-              {/* Artifacts */}
-              {session.output_types.length > 0 && (
-                <div>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                    Artifacts
-                  </p>
-                  <div className="space-y-1.5">
-                    {session.output_types.map((type) => (
-                      <div
-                        key={type}
-                        className="flex items-center gap-2 rounded-lg border border-[hsl(var(--border))]/50 bg-[hsl(var(--card))]/50 px-3 py-2"
-                      >
-                        <span className="text-[hsl(var(--muted-foreground))]">
-                          {artifactIcons[type] ?? null}
-                        </span>
-                        <span className="flex-1 text-xs font-medium capitalize text-[hsl(var(--foreground))]">
-                          {type.replace("-", " ")}
-                        </span>
-                        <button
-                          aria-label={`Download ${type}`}
-                          className="flex h-6 w-6 items-center justify-center rounded-md text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent)]"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              {session.summary && typeof session.summary === "object" && "notes" in session.summary && (
+                <p className="mt-3 text-xs text-[var(--muted-foreground)] italic">
+                  {String(session.summary.notes)}
+                </p>
               )}
-
-              {/* Summary note */}
-              {session.summary && typeof session.summary === "object" && (
-                <div className="rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--muted))]/20 p-4">
-                  <p className="mb-1 text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                    Summary
-                  </p>
-                  <p className="text-sm text-[hsl(var(--foreground))]">
-                    {Object.values(session.summary).join(" ")}
-                  </p>
-                </div>
+              {session.summary && typeof session.summary === "object" && "error" in session.summary && (
+                <p className="mt-3 text-xs text-[var(--destructive)] flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {String(session.summary.error)}
+                </p>
               )}
+              <div className="mt-3 flex items-center gap-2">
+                <Link
+                  href={`/session/${session.id}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 hover:bg-[var(--primary)]/25 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  View Full Session
+                </Link>
+              </div>
             </div>
-
-            {/* Drawer footer */}
-            <div className="border-t border-[hsl(var(--border))] px-6 py-4">
-              <Link
-                href={`/session/${session.id}`}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-black transition-all duration-200 hover:opacity-90"
-              >
-                <Eye className="h-4 w-4" />
-                View Full Session
-              </Link>
-            </div>
-          </motion.aside>
-        </>
-      )}
-    </AnimatePresence>
-  );
-}
-
-// ─── Empty State ──────────────────────────────────────────────────────────────
-
-function EmptyState({ hasFilters }: { hasFilters: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))]">
-        {hasFilters ? (
-          <Search className="h-7 w-7 text-[hsl(var(--muted-foreground))]" />
-        ) : (
-          <Activity className="h-7 w-7 text-[hsl(var(--muted-foreground))]" />
+          </motion.div>
         )}
-      </div>
-      <h3 className="text-base font-semibold text-[hsl(var(--foreground))]">
-        {hasFilters ? "No sessions match your filters" : "No test sessions yet"}
-      </h3>
-      <p className="mt-1.5 max-w-xs text-sm text-[hsl(var(--muted-foreground))]">
-        {hasFilters
-          ? "Try adjusting your search or filter criteria to find what you're looking for."
-          : "Start a new chat session to run your first end-to-end test against a live website."}
-      </p>
-      {!hasFilters && (
-        <Link
-          href="/"
-          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-black transition-all duration-200 hover:opacity-90"
-        >
-          Start Testing
-          <ChevronRight className="h-4 w-4" />
-        </Link>
-      )}
-    </div>
-  );
-}
-
-// ─── Bulk Actions Bar ─────────────────────────────────────────────────────────
-
-const bulkBarVariants: Variants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" } },
-};
-
-function BulkActionsBar({
-  count,
-  onClear,
-  onDelete,
-  onExport,
-}: {
-  count: number;
-  onClear: () => void;
-  onDelete: () => void;
-  onExport: () => void;
-}) {
-  return (
-    <motion.div
-      variants={bulkBarVariants}
-      initial="hidden"
-      animate="visible"
-      exit="hidden"
-      className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2"
-    >
-      <div className="flex items-center gap-3 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-5 py-3 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.4)]">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent)] text-xs font-bold text-black">
-          {count}
-        </span>
-        <span className="text-sm font-medium text-[hsl(var(--foreground))]">
-          session{count !== 1 ? "s" : ""} selected
-        </span>
-        <div className="mx-1 h-4 w-px bg-[hsl(var(--border))]" />
-        <button
-          onClick={onExport}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--muted))]/40"
-        >
-          <Download className="h-4 w-4" />
-          Export
-        </button>
-        <button
-          onClick={onDelete}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-400/10"
-        >
-          <Trash2 className="h-4 w-4" />
-          Delete
-        </button>
-        <button
-          onClick={onClear}
-          aria-label="Clear selection"
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))]/40 hover:text-[hsl(var(--foreground))]"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -750,36 +479,25 @@ export default function HistoryPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<SessionStatus | "all">("all");
-  const [dateFilter, setDateFilter] = useState<DateFilter>("All time");
+  const [frameworkFilter, setFrameworkFilter] = useState<TestFramework | "all">("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [openSessionId, setOpenSessionId] = useState<string | null>(null);
-  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
-
-  const openSession = useMemo(
-    () => MOCK_SESSIONS.find((s) => s.id === openSessionId) ?? null,
-    [openSessionId],
-  );
+  const [sessions, setSessions] = useState(MOCK_SESSIONS);
+  const [showFilters, setShowFilters] = useState(false);
 
   const filtered = useMemo(() => {
-    return MOCK_SESSIONS.filter((s) => {
-      const q = search.toLowerCase();
-      const matchesSearch =
-        !q ||
-        s.target_url.toLowerCase().includes(q) ||
-        (s.title ?? "").toLowerCase().includes(q);
-      const matchesStatus = statusFilter === "all" || s.status === statusFilter;
-      const matchesDate =
-        dateFilter === "All time" ||
-        (dateFilter === "Today" && isToday(s.created_at)) ||
-        (dateFilter === "Last 7 days" && isWithinDays(s.created_at, 7)) ||
-        (dateFilter === "Last 30 days" && isWithinDays(s.created_at, 30));
-      return matchesSearch && matchesStatus && matchesDate;
+    return sessions.filter((s) => {
+      const matchSearch =
+        search === "" ||
+        s.title?.toLowerCase().includes(search.toLowerCase()) ||
+        s.target_url.toLowerCase().includes(search.toLowerCase());
+      const matchStatus = statusFilter === "all" || s.status === statusFilter;
+      const matchFramework =
+        frameworkFilter === "all" || s.test_framework === frameworkFilter;
+      return matchSearch && matchStatus && matchFramework;
     });
-  }, [search, statusFilter, dateFilter]);
+  }, [sessions, search, statusFilter, frameworkFilter]);
 
-  const hasFilters = search !== "" || statusFilter !== "all" || dateFilter !== "All time";
-
-  const toggleSelect = useCallback((id: string) => {
+  const handleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -788,244 +506,289 @@ export default function HistoryPage() {
     });
   }, []);
 
-  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
-
-  const handleDelete = useCallback(() => {
-    setSelectedIds(new Set());
+  const handleDelete = useCallback((id: string) => {
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }, []);
 
-  const handleExport = useCallback(() => {
+  const handleDeleteSelected = useCallback(() => {
+    setSessions((prev) => prev.filter((s) => !selectedIds.has(s.id)));
     setSelectedIds(new Set());
-  }, []);
+  }, [selectedIds]);
 
-  const selectMode = selectedIds.size > 0;
+  const handleSelectAll = useCallback(() => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((s) => s.id)));
+    }
+  }, [filtered, selectedIds.size]);
 
-  // Summary stats
   const stats = useMemo(() => {
-    const total = MOCK_SESSIONS.length;
-    const completed = MOCK_SESSIONS.filter((s) => s.status === "completed").length;
-    const errors = MOCK_SESSIONS.filter((s) => s.status === "error").length;
-    const totalTests = MOCK_SESSIONS.reduce((acc, s) => acc + s.total_tests, 0);
-    return { total, completed, errors, totalTests };
-  }, []);
+    const total = sessions.length;
+    const completed = sessions.filter((s) => s.status === "completed").length;
+    const running = sessions.filter((s) => s.status === "running").length;
+    const errors = sessions.filter((s) => s.status === "error").length;
+    const totalTests = sessions.reduce((acc, s) => acc + s.total_tests, 0);
+    const totalPassed = sessions.reduce((acc, s) => acc + s.pass_count, 0);
+    return { total, completed, running, errors, totalTests, totalPassed };
+  }, [sessions]);
 
   return (
-    <div className="min-h-screen bg-[hsl(var(--background))]">
-      <div className="mx-auto max-w-7xl px-4 pb-24 pt-10 sm:px-6 lg:px-8">
-
-        {/* Page header */}
-        <Reveal>
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-1 text-xs font-medium text-[var(--accent)]">
-                <Activity className="h-3 w-3" />
-                {t("history.badge")}
-              </span>
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight text-[hsl(var(--foreground))] sm:text-4xl">
-              {t("history.heading")}
-            </h1>
-            <p className="mt-2 text-base text-[hsl(var(--muted-foreground))]">
-              {t("history.subheading")}
-            </p>
-          </div>
-        </Reveal>
-
-        {/* Summary stats */}
-        <Reveal delay={0.05}>
-          <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              { label: t("history.stats.total"), value: stats.total, icon: <Square className="h-4 w-4" />, color: "text-[hsl(var(--foreground))]" },
-              { label: t("history.stats.completed"), value: stats.completed, icon: <CheckCircle className="h-4 w-4" />, color: "text-emerald-400" },
-              { label: t("history.stats.errors"), value: stats.errors, icon: <XCircle className="h-4 w-4" />, color: "text-red-400" },
-              { label: t("history.stats.tests"), value: stats.totalTests, icon: <Star className="h-4 w-4" />, color: "text-[var(--accent)]" },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+    <div className="min-h-screen bg-[var(--background)]">
+      {/* Header */}
+      <div className="border-b border-[var(--border)] bg-[var(--card)]/40">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <Reveal>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <h1 className="text-2xl font-bold text-[var(--foreground)] tracking-tight">
+                  Session History
+                </h1>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                  Browse, filter, and manage all your past QA agent runs.
+                </p>
+              </div>
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90 transition-colors shadow-[0_0_16px_var(--primary-glow)]"
               >
-                <div className={cn("mb-1 flex items-center gap-1.5", stat.color)}>
-                  {stat.icon}
-                  <span className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
-                    {stat.label}
-                  </span>
-                </div>
-                <p className={cn("text-2xl font-bold", stat.color)}>{stat.value}</p>
-              </div>
-            ))}
-          </div>
-        </Reveal>
+                <Activity className="w-4 h-4" />
+                New Session
+              </Link>
+            </div>
+          </Reveal>
 
-        {/* Filter bar */}
-        <Reveal delay={0.08}>
-          <div className="sticky top-16 z-20 mb-6 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--background))]/90 p-3 backdrop-blur-md shadow-[0_2px_8px_rgba(0,0,0,0.12)]">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {/* Search */}
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder={t("history.filter.searchPlaceholder")}
-                  className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-2 pl-9 pr-4 text-sm text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:border-[var(--accent)]/60 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]/40 transition-colors"
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch("")}
-                    aria-label="Clear search"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Status dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setStatusDropdownOpen((v) => !v)}
-                  className="flex items-center gap-2 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] px-3 py-2 text-sm text-[hsl(var(--foreground))] transition-colors hover:border-[var(--accent)]/40"
+          {/* Stats row */}
+          <Reveal delay={0.08}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+              {[
+                { label: "Total Sessions", value: stats.total, color: "text-[var(--foreground)]" },
+                { label: "Completed", value: stats.completed, color: "text-emerald-400" },
+                { label: "Running", value: stats.running, color: "text-[var(--accent)]" },
+                { label: "Errors", value: stats.errors, color: "text-[var(--destructive)]" },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-3"
                 >
-                  <Filter className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                  {STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label}
-                  <ChevronDown className="h-3.5 w-3.5 text-[hsl(var(--muted-foreground))]" />
-                </button>
-                <AnimatePresence>
-                  {statusDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 6 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute right-0 top-full z-30 mt-1.5 w-44 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] py-1 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.3)]"
-                    >
-                      {STATUS_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => {
-                            setStatusFilter(opt.value);
-                            setStatusDropdownOpen(false);
-                          }}
-                          className={cn(
-                            "flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors hover:bg-[hsl(var(--muted))]/40",
-                            statusFilter === opt.value
-                              ? "text-[var(--accent)]"
-                              : "text-[hsl(var(--foreground))]",
-                          )}
-                        >
-                          {statusFilter === opt.value && <Check className="h-3.5 w-3.5" />}
-                          <span className={statusFilter === opt.value ? "" : "ml-5"}>
-                            {opt.label}
-                          </span>
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                  <p className={cn("text-xl font-bold", stat.color)}>{stat.value}</p>
+                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+          </Reveal>
+        </div>
+      </div>
 
-              {/* Date pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto">
-                {(Array.isArray(t.raw("history.datePills")) ? t.raw("history.datePills") : []).length === 0
-                  ? DATE_FILTERS.map((df) => (
-                      <button
-                        key={df}
-                        onClick={() => setDateFilter(df)}
-                        className={cn(
-                          "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                          dateFilter === df
-                            ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
-                            : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:border-[var(--accent)]/40",
-                        )}
-                      >
-                        {df}
-                      </button>
-                    ))
-                  : DATE_FILTERS.map((df) => (
-                      <button
-                        key={df}
-                        onClick={() => setDateFilter(df)}
-                        className={cn(
-                          "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-                          dateFilter === df
-                            ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
-                            : "border-[hsl(var(--border))] bg-[hsl(var(--card))] text-[hsl(var(--muted-foreground))] hover:border-[var(--accent)]/40",
-                        )}
-                      >
-                        {df}
-                      </button>
-                    ))}
-              </div>
+      {/* Content */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Toolbar */}
+        <Reveal>
+          <div className="flex items-center gap-3 flex-wrap mb-6">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-foreground)]" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search sessions or URLs..."
+                className="w-full pl-9 pr-4 py-2 rounded-xl border border-[var(--border)] bg-[var(--card)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/50 transition-all"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            {/* Active filter summary */}
-            {hasFilters && (
-              <div className="mt-2 flex items-center gap-2 border-t border-[hsl(var(--border))]/50 pt-2">
-                <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                  {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+            {/* Filter toggle */}
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              className={cn(
+                "inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm font-medium transition-colors",
+                showFilters
+                  ? "bg-[var(--primary)]/15 border-[var(--primary)]/40 text-[var(--primary)]"
+                  : "border-[var(--border)] bg-[var(--card)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              )}
+            >
+              <Filter className="w-4 h-4" />
+              Filters
+              {(statusFilter !== "all" || frameworkFilter !== "all") && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
+              )}
+            </button>
+
+            {/* Bulk actions */}
+            {selectedIds.size > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-2"
+              >
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  {selectedIds.size} selected
                 </span>
                 <button
-                  onClick={() => {
-                    setSearch("");
-                    setStatusFilter("all");
-                    setDateFilter("All time");
-                  }}
-                  className="ml-auto text-xs text-[var(--accent)] hover:underline"
+                  onClick={handleDeleteSelected}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--destructive)]/10 text-[var(--destructive)] border border-[var(--destructive)]/20 hover:bg-[var(--destructive)]/20 transition-colors"
                 >
-                  {t("history.filter.clearAll")}
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete selected
                 </button>
-              </div>
+              </motion.div>
             )}
           </div>
         </Reveal>
 
-        {/* Session grid or empty state */}
+        {/* Filter panel */}
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              key="filters"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden mb-6"
+            >
+              <div className="flex flex-wrap gap-4 p-4 rounded-xl border border-[var(--border)] bg-[var(--card)]">
+                {/* Status filter */}
+                <div>
+                  <p className="text-xs font-medium text-[var(--muted-foreground)] mb-2 uppercase tracking-wide">
+                    Status
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(["all", "completed", "running", "error", "pending"] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setStatusFilter(s)}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors capitalize",
+                          statusFilter === s
+                            ? "bg-[var(--primary)]/20 border-[var(--primary)]/40 text-[var(--primary)]"
+                            : "border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5"
+                        )}
+                      >
+                        {s === "all" ? "All" : STATUS_CONFIG[s as SessionStatus]?.label ?? s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Framework filter */}
+                <div>
+                  <p className="text-xs font-medium text-[var(--muted-foreground)] mb-2 uppercase tracking-wide">
+                    Framework
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(["all", "playwright", "cypress", "both"] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setFrameworkFilter(f)}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors",
+                          frameworkFilter === f
+                            ? "bg-[var(--primary)]/20 border-[var(--primary)]/40 text-[var(--primary)]"
+                            : "border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5"
+                        )}
+                      >
+                        {f === "all" ? "All" : FRAMEWORK_LABELS[f]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Clear */}
+                {(statusFilter !== "all" || frameworkFilter !== "all") && (
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => {
+                        setStatusFilter("all");
+                        setFrameworkFilter("all");
+                      }}
+                      className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] underline transition-colors"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Select all row */}
+        {filtered.length > 0 && (
+          <div className="flex items-center gap-2 mb-3">
+            <button
+              onClick={handleSelectAll}
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+            >
+              {selectedIds.size === filtered.length && filtered.length > 0 ? (
+                <Check className="w-3.5 h-3.5 text-[var(--primary)]" />
+              ) : (
+                <Square className="w-3.5 h-3.5" />
+              )}
+              {selectedIds.size === filtered.length && filtered.length > 0
+                ? "Deselect all"
+                : "Select all"}
+            </button>
+            <span className="text-xs text-[var(--muted-foreground)]">
+              {filtered.length} session{filtered.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+        )}
+
+        {/* Session list */}
         {filtered.length === 0 ? (
           <Reveal>
-            <EmptyState hasFilters={hasFilters} />
+            <div className="flex flex-col items-center justify-center py-24 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center mb-4">
+                <Search className="w-6 h-6 text-[var(--muted-foreground)]" />
+              </div>
+              <h3 className="text-base font-semibold text-[var(--foreground)] mb-1">
+                No sessions found
+              </h3>
+              <p className="text-sm text-[var(--muted-foreground)] max-w-xs">
+                Try adjusting your search or filters, or start a new session.
+              </p>
+              <Link
+                href="/"
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-[var(--primary)]/15 text-[var(--primary)] border border-[var(--primary)]/30 hover:bg-[var(--primary)]/25 transition-colors"
+              >
+                <Activity className="w-4 h-4" />
+                Start a new session
+              </Link>
+            </div>
           </Reveal>
         ) : (
           <motion.div
+            variants={listVariants}
             initial="hidden"
             animate="visible"
-            variants={{
-              hidden: {},
-              visible: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
-            }}
-            className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            className="flex flex-col gap-3"
           >
             {filtered.map((session) => (
               <SessionCard
                 key={session.id}
                 session={session}
                 selected={selectedIds.has(session.id)}
-                onSelect={toggleSelect}
-                onOpen={setOpenSessionId}
-                selectMode={selectMode}
+                onSelect={handleSelect}
+                onDelete={handleDelete}
               />
             ))}
           </motion.div>
         )}
       </div>
-
-      {/* Session preview drawer */}
-      <SessionDrawer
-        session={openSession}
-        onClose={() => setOpenSessionId(null)}
-      />
-
-      {/* Bulk actions bar */}
-      <AnimatePresence>
-        {selectedIds.size > 0 && (
-          <BulkActionsBar
-            count={selectedIds.size}
-            onClear={clearSelection}
-            onDelete={handleDelete}
-            onExport={handleExport}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

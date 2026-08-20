@@ -7,13 +7,10 @@ import { Send, Globe, Sparkles, Terminal, FileText, Download, ChevronDown, Check
 import { Reveal } from "@/components/Reveal";
 import { cn } from "@/lib/utils";
 import { fadeInUp, staggerContainer, scaleIn } from "@/lib/motion";
-import type from "@/lib/data";
-type AgentMode = any;
-const AgentMode: any = [];
-type TestFramework = any;
-const TestFramework: any = [];
-type MessageRole = any;
-const MessageRole: any = [];
+
+type AgentMode = "autonomous" | "hybrid" | "instruction-driven";
+type TestFramework = "playwright" | "cypress" | "both";
+type MessageRole = "user" | "assistant" | "system";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,198 +73,136 @@ const MOCK_INITIAL_MESSAGES: ChatMessage[] = [
     role: "assistant",
     content:
       "Hello! I'm your QA Agent. Paste any live website URL and tell me what you'd like to test. I can run end-to-end tests, write automation scripts in Playwright or Cypress, generate Excel test case sheets, and produce detailed bug reports.",
-    timestamp: new Date(Date.now() - 60000),
+    timestamp: new Date(0),
     steps: [],
     artifacts: [],
   },
 ];
 
-const MOCK_AGENT_RESPONSE = (url: string): ChatMessage => ({
-  id: `agent-${Date.now()}`,
-  role: "assistant",
-  content: `I've analyzed **${url}** and completed the test run. Here's what I found:\n\n- **12 test cases** executed across 4 modules\n- **10 passed**, 1 failed, 1 skipped\n- Critical issue found in the checkout flow: form validation missing on email field\n- Accessibility: 3 WCAG AA warnings detected\n\nArtifacts are ready for download below.`,
-  timestamp: new Date(),
-  steps: [
-    { id: "s1", title: "Crawling site structure", status: "complete" },
-    { id: "s2", title: "Identifying interactive elements", status: "complete" },
-    { id: "s3", title: "Running test scenarios", status: "complete" },
-    { id: "s4", title: "Generating artifacts", status: "complete" },
-  ],
-  artifacts: [
-    { type: "script", label: "playwright-tests.spec.ts", size: "14 KB", icon: "code" },
-    { type: "excel", label: "test-cases.xlsx", size: "28 KB", icon: "sheet" },
-    { type: "bug-report", label: "bug-report.pdf", size: "6 KB", icon: "bug" },
-    { type: "log", label: "run-log.txt", size: "3 KB", icon: "log" },
-  ],
-});
+function makeMockAgentResponse(url: string): ChatMessage {
+  return {
+    id: `agent-resp`,
+    role: "assistant",
+    content: `I've analyzed **${url}** and completed the test run. Here's what I found:\n\n- **12 test cases** executed across 4 modules\n- **10 passed**, 1 failed, 1 skipped\n- Critical issue found in the checkout flow: form validation missing on email field\n- Accessibility: 3 WCAG AA warnings detected\n\nArtifacts are ready for download below.`,
+    timestamp: new Date(0),
+    steps: [
+      { id: "s1", title: "Crawling site structure", status: "complete" },
+      { id: "s2", title: "Identifying interactive elements", status: "complete" },
+      { id: "s3", title: "Running test scenarios", status: "complete" },
+      { id: "s4", title: "Generating artifacts", status: "complete" },
+    ],
+    artifacts: [
+      { type: "script", label: "playwright-tests.spec.ts", size: "14 KB", icon: "code" },
+      { type: "excel", label: "test-cases.xlsx", size: "28 KB", icon: "sheet" },
+      { type: "bug-report", label: "bug-report.pdf", size: "6 KB", icon: "bug" },
+      { type: "log", label: "run-log.txt", size: "3 KB", icon: "log" },
+    ],
+  };
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const artifactIconVariants: Record<string, React.ReactNode> = {
-  code: <FileCode className="h-4 w-4" />,
-  sheet: <FileText className="h-4 w-4" />,
-  bug: <AlertCircle className="h-4 w-4" />,
-  log: <Terminal className="h-4 w-4" />,
-};
-
-const artifactColors: Record<string, string> = {
-  script: "bg-[var(--accent)]/10 text-[var(--accent)] border-[var(--accent)]/20",
-  excel: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  "bug-report": "bg-rose-500/10 text-rose-400 border-rose-500/20",
-  log: "bg-slate-500/10 text-slate-400 border-slate-500/20",
+const artifactIconMap: Record<string, React.ReactNode> = {
+  code: <FileCode className="w-4 h-4" />,
+  sheet: <FileText className="w-4 h-4" />,
+  bug: <AlertCircle className="w-4 h-4" />,
+  log: <Terminal className="w-4 h-4" />,
 };
 
 function ArtifactChip({ artifact }: { artifact: ArtifactPreview }) {
   return (
-    <motion.button
-      whileHover={{ scale: 1.03 }}
-      whileTap={{ scale: 0.97 }}
-      className={cn(
-        "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all duration-200",
-        artifactColors[artifact.type]
-      )}
-    >
-      {artifactIconVariants[artifact.icon]}
-      <span>{artifact.label}</span>
-      <span className="opacity-60">{artifact.size}</span>
-      <Download className="h-3 w-3 opacity-60" />
-    </motion.button>
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--card)] border border-[var(--border)] text-xs text-[var(--muted-foreground)] hover:border-[var(--accent)]/40 hover:text-[var(--foreground)] transition-all duration-200 cursor-pointer group">
+      <span className="text-[var(--accent)] group-hover:text-[var(--accent)]">
+        {artifactIconMap[artifact.icon]}
+      </span>
+      <span className="font-mono text-[var(--foreground)] truncate max-w-[120px]">{artifact.label}</span>
+      <span className="text-[var(--muted-foreground)]">{artifact.size}</span>
+      <Download className="w-3 h-3 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+    </div>
   );
 }
 
 function StepBadge({ step }: { step: StepItem }) {
-  const icons = {
-    complete: <Check className="h-3 w-3" />,
-    running: <Loader2 className="h-3 w-3 animate-spin" />,
-    pending: <Clock className="h-3 w-3 opacity-40" />,
-    error: <AlertCircle className="h-3 w-3" />,
+  const statusConfig = {
+    complete: { icon: <Check className="w-3 h-3" />, color: "text-emerald-400", bg: "bg-emerald-400/10" },
+    running: { icon: <Loader2 className="w-3 h-3 animate-spin" />, color: "text-[var(--accent)]", bg: "bg-[var(--accent)]/10" },
+    pending: { icon: <Clock className="w-3 h-3" />, color: "text-[var(--muted-foreground)]", bg: "bg-white/5" },
+    error: { icon: <AlertCircle className="w-3 h-3" />, color: "text-[var(--destructive)]", bg: "bg-[var(--destructive)]/10" },
   };
-  const colors = {
-    complete: "text-emerald-400",
-    running: "text-[var(--accent)]",
-    pending: "text-slate-500",
-    error: "text-rose-400",
-  };
+  const cfg = statusConfig[step.status];
   return (
-    <div className={cn("flex items-center gap-1.5 text-xs", colors[step.status])}>
-      {icons[step.status]}
+    <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium", cfg.bg, cfg.color)}>
+      {cfg.icon}
       <span>{step.title}</span>
     </div>
   );
 }
 
-const typingVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.2 } },
-};
-
-function TypingIndicator() {
-  return (
-    <motion.div
-      variants={typingVariants}
-      initial="hidden"
-      animate="visible"
-      exit="hidden"
-      className="flex items-center gap-1 px-4 py-3"
-    >
-      {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          className="h-2 w-2 rounded-full bg-[var(--accent)]/60"
-          animate={{ y: [0, -5, 0] }}
-          transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-        />
-      ))}
-    </motion.div>
-  );
-}
-
-function MessageBubble({ msg }: { msg: ChatMessage }) {
-  const isUser = msg.role === "user";
-
-  const renderContent = (content: string) => {
-    const parts = content.split(/(\*\*[^*]+\*\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return (
-          <strong key={i} className="font-semibold text-white">
-            {part.slice(2, -2)}
-          </strong>
-        );
-      }
-      return <span key={i}>{part}</span>;
-    });
-  };
-
+function MessageBubble({ message }: { message: ChatMessage }) {
+  const isUser = message.role === "user";
   return (
     <motion.div
       variants={fadeInUp}
       initial="hidden"
       animate="visible"
-      className={cn("flex w-full gap-3", isUser ? "justify-end" : "justify-start")}
+      className={cn("flex gap-3", isUser ? "flex-row-reverse" : "flex-row")}
     >
-      {!isUser && (
-        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/15 border border-[var(--accent)]/30">
-          <Sparkles className="h-4 w-4 text-[var(--accent)]" />
-        </div>
-      )}
+      {/* Avatar */}
+      <div
+        className={cn(
+          "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold",
+          isUser
+            ? "bg-[var(--primary)] text-white"
+            : "bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/30"
+        )}
+      >
+        {isUser ? "U" : <Sparkles className="w-4 h-4" />}
+      </div>
 
-      <div className={cn("flex max-w-[80%] flex-col gap-2", isUser && "items-end")}>
+      {/* Bubble */}
+      <div className={cn("flex flex-col gap-2 max-w-[80%]", isUser ? "items-end" : "items-start")}>
         <div
           className={cn(
-            "rounded-2xl px-4 py-3 text-sm leading-relaxed",
+            "px-4 py-3 rounded-2xl text-sm leading-relaxed",
             isUser
-              ? "bg-[var(--accent)] text-black font-medium rounded-tr-sm"
-              : "bg-white/5 border border-white/10 text-white/85 rounded-tl-sm"
+              ? "bg-[var(--primary)] text-white rounded-tr-sm"
+              : "bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-tl-sm"
           )}
         >
-          {renderContent(msg.content)}
+          {message.isTyping ? (
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-bounce" style={{ animationDelay: "0ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-bounce" style={{ animationDelay: "150ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-bounce" style={{ animationDelay: "300ms" }} />
+            </span>
+          ) : (
+            <span className="whitespace-pre-wrap">{message.content}</span>
+          )}
         </div>
 
-        {msg.steps && msg.steps.length > 0 && (
-          <div className="flex flex-col gap-1 rounded-xl border border-white/8 bg-white/3 px-3 py-2">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-white/30">
-              Agent Steps
-            </p>
-            {msg.steps.map((step) => (
+        {/* Steps */}
+        {message.steps && message.steps.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {message.steps.map((step) => (
               <StepBadge key={step.id} step={step} />
             ))}
           </div>
         )}
 
-        {msg.artifacts && msg.artifacts.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {msg.artifacts.map((a) => (
-              <ArtifactChip key={a.label} artifact={a} />
+        {/* Artifacts */}
+        {message.artifacts && message.artifacts.length > 0 && (
+          <div className="grid grid-cols-2 gap-1.5 w-full">
+            {message.artifacts.map((artifact) => (
+              <ArtifactChip key={artifact.label} artifact={artifact} />
             ))}
           </div>
         )}
-
-        <span className="text-[10px] text-white/25">
-          {msg.timestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}
-        </span>
       </div>
-
-      {isUser && (
-        <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 border border-white/15">
-          <span className="text-xs font-bold text-white/70">U</span>
-        </div>
-      )}
     </motion.div>
   );
 }
 
 // ─── Settings Panel ───────────────────────────────────────────────────────────
-
-interface SettingsPanelProps {
-  agentMode: AgentMode;
-  setAgentMode: (m: AgentMode) => void;
-  framework: TestFramework;
-  setFramework: (f: TestFramework) => void;
-  outputs: string[];
-  toggleOutput: (id: string) => void;
-  onClose: () => void;
-}
 
 function SettingsPanel({
   agentMode,
@@ -277,97 +212,98 @@ function SettingsPanel({
   outputs,
   toggleOutput,
   onClose,
-}: SettingsPanelProps) {
-  const panelVariants: Variants = {
-    hidden: { opacity: 0, x: 24, scale: 0.97 },
-    visible: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.25, ease: "easeOut" } },
-  };
-
+}: {
+  agentMode: AgentMode;
+  setAgentMode: (m: AgentMode) => void;
+  framework: TestFramework;
+  setFramework: (f: TestFramework) => void;
+  outputs: string[];
+  toggleOutput: (id: string) => void;
+  onClose: () => void;
+}) {
   return (
     <motion.div
-      variants={panelVariants}
+      variants={scaleIn}
       initial="hidden"
       animate="visible"
       exit="hidden"
-      className="absolute right-0 top-12 z-50 w-72 rounded-2xl border border-white/10 bg-[#0f1117] shadow-[0_8px_40px_rgba(0,0,0,0.5)] p-4"
+      className="absolute right-0 top-full mt-2 z-50 w-80 bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] p-4 flex flex-col gap-4"
     >
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-white">Session Settings</h3>
-        <button
-          onClick={onClose}
-          className="rounded-lg p-1 text-white/40 hover:text-white/80 transition-colors"
-        >
-          <X className="h-4 w-4" />
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-[var(--foreground)]">Session Settings</span>
+        <button onClick={onClose} className="p-1 rounded-lg hover:bg-white/5 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
+          <X className="w-4 h-4" />
         </button>
       </div>
 
-      <div className="space-y-4">
-        <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-white/30">
-            Agent Mode
-          </p>
-          <div className="space-y-1">
-            {AGENT_MODES.map((m) => (
-              <button
-                key={m.value}
-                onClick={() => setAgentMode(m.value)}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition-all duration-150",
-                  agentMode === m.value
-                    ? "bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/30"
-                    : "text-white/60 hover:bg-white/5 border border-transparent"
-                )}
-              >
-                <span className="font-medium">{m.label}</span>
-                <span className="opacity-60">{m.desc}</span>
-              </button>
-            ))}
-          </div>
+      {/* Agent Mode */}
+      <div className="flex flex-col gap-2">
+        <label className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Agent Mode</label>
+        <div className="flex flex-col gap-1">
+          {AGENT_MODES.map((mode) => (
+            <button
+              key={mode.value}
+              onClick={() => setAgentMode(mode.value)}
+              className={cn(
+                "flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all duration-150",
+                agentMode === mode.value
+                  ? "bg-[var(--primary)]/15 text-[var(--foreground)] border border-[var(--primary)]/30"
+                  : "text-[var(--muted-foreground)] hover:bg-white/5 hover:text-[var(--foreground)] border border-transparent"
+              )}
+            >
+              <span>{mode.label}</span>
+              <span className="text-xs opacity-60">{mode.desc}</span>
+              {agentMode === mode.value && <Check className="w-3.5 h-3.5 text-[var(--primary)] ml-2" />}
+            </button>
+          ))}
         </div>
+      </div>
 
-        <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-white/30">
-            Test Framework
-          </p>
-          <div className="flex gap-2">
-            {FRAMEWORKS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setFramework(f.value)}
-                className={cn(
-                  "flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-all duration-150",
-                  framework === f.value
-                    ? "border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--accent)]"
-                    : "border-white/10 text-white/50 hover:border-white/20 hover:text-white/70"
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
+      {/* Framework */}
+      <div className="flex flex-col gap-2">
+        <label className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Test Framework</label>
+        <div className="flex gap-1">
+          {FRAMEWORKS.map((fw) => (
+            <button
+              key={fw.value}
+              onClick={() => setFramework(fw.value)}
+              className={cn(
+                "flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 border",
+                framework === fw.value
+                  ? "bg-[var(--accent)]/15 text-[var(--accent)] border-[var(--accent)]/30"
+                  : "text-[var(--muted-foreground)] hover:bg-white/5 border-transparent"
+              )}
+            >
+              {fw.label}
+            </button>
+          ))}
         </div>
+      </div>
 
-        <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-white/30">
-            Output Types
-          </p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {OUTPUT_OPTIONS.map((o) => (
+      {/* Outputs */}
+      <div className="flex flex-col gap-2">
+        <label className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">Output Types</label>
+        <div className="grid grid-cols-2 gap-1">
+          {OUTPUT_OPTIONS.map((opt) => {
+            const active = outputs.includes(opt.id);
+            return (
               <button
-                key={o.id}
-                onClick={() => toggleOutput(o.id)}
+                key={opt.id}
+                onClick={() => toggleOutput(opt.id)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all duration-150",
-                  outputs.includes(o.id)
-                    ? "border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--accent)]"
-                    : "border-white/10 text-white/50 hover:border-white/20"
+                  "flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all duration-150 border",
+                  active
+                    ? "bg-[var(--primary)]/10 text-[var(--foreground)] border-[var(--primary)]/20"
+                    : "text-[var(--muted-foreground)] hover:bg-white/5 border-transparent"
                 )}
               >
-                {outputs.includes(o.id) && <Check className="h-3 w-3" />}
-                {o.label}
+                <div className={cn("w-3.5 h-3.5 rounded border flex items-center justify-center", active ? "bg-[var(--primary)] border-[var(--primary)]" : "border-[var(--border)]")}>
+                  {active && <Check className="w-2.5 h-2.5 text-white" />}
+                </div>
+                {opt.label}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
     </motion.div>
@@ -380,131 +316,184 @@ export default function HomeChatInterfacePage() {
   const t = useTranslations();
 
   const [messages, setMessages] = useState<ChatMessage[]>(MOCK_INITIAL_MESSAGES);
-  const [inputValue, setInputValue] = useState("");
-  const [urlValue, setUrlValue] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [input, setInput] = useState("");
+  const [url, setUrl] = useState("");
+  const [urlError, setUrlError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const [agentMode, setAgentMode] = useState<AgentMode>("autonomous");
   const [framework, setFramework] = useState<TestFramework>("playwright");
   const [outputs, setOutputs] = useState<string[]>(["script", "excel", "bug-report"]);
-  const [sessionActive, setSessionActive] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showQuickPrompts, setShowQuickPrompts] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping, scrollToBottom]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-  const toggleOutput = (id: string) => {
+  function validateUrl(value: string): boolean {
+    try {
+      const u = new URL(value);
+      return u.protocol === "https:" || u.protocol === "http:";
+    } catch {
+      return false;
+    }
+  }
+
+  const toggleOutput = useCallback((id: string) => {
     setOutputs((prev) =>
       prev.includes(id) ? prev.filter((o) => o !== id) : [...prev, id]
     );
-  };
+  }, []);
 
-  const handleSend = useCallback(async () => {
-    const text = inputValue.trim();
-    if (!text && !urlValue.trim()) return;
+  async function handleSend() {
+    const trimmed = input.trim();
+    if (!trimmed) return;
 
-    const userContent = urlValue.trim()
-      ? `${urlValue.trim()}\n\n${text || "Run a full end-to-end test on this URL."}`
-      : text;
+    if (url && !validateUrl(url)) {
+      setUrlError("Please enter a valid URL starting with https://");
+      return;
+    }
+    setUrlError("");
 
     const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: `user-${messages.length}`,
       role: "user",
-      content: userContent,
+      content: url ? `${trimmed}\n\nURL: ${url}` : trimmed,
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setInputValue("");
-    setIsTyping(true);
-    setSessionActive(true);
+    const typingMsg: ChatMessage = {
+      id: "typing",
+      role: "assistant",
+      content: "",
+      timestamp: new Date(),
+      isTyping: true,
+    };
 
-    await new Promise((r) => setTimeout(r, 2800));
+    setMessages((prev) => [...prev, userMsg, typingMsg]);
+    setInput("");
+    setIsLoading(true);
+    setShowQuickPrompts(false);
 
-    setIsTyping(false);
-    const agentMsg = MOCK_AGENT_RESPONSE(urlValue.trim() || "https://example.com");
-    setMessages((prev) => [...prev, agentMsg]);
-    setUrlValue("");
-  }, [inputValue, urlValue]);
+    await new Promise((r) => setTimeout(r, 2200));
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const agentMsg = makeMockAgentResponse(url || "the target website");
+    setMessages((prev) => [...prev.filter((m) => m.id !== "typing"), agentMsg]);
+    setIsLoading(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  };
+  }
 
-  const handleQuickPrompt = (prompt: string) => {
-    setInputValue(prompt);
+  function handleQuickPrompt(prompt: string) {
+    setInput(prompt);
     inputRef.current?.focus();
-  };
-
-  const handleNewSession = () => {
-    setMessages(MOCK_INITIAL_MESSAGES);
-    setSessionActive(false);
-    setUrlValue("");
-    setInputValue("");
-  };
+  }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col bg-[hsl(var(--background))]">
-      {/* ── Top bar ── */}
+    <div className="flex flex-col min-h-[calc(100vh-4rem)] max-w-4xl mx-auto px-4 py-6 gap-4">
+      {/* ── Header ── */}
       <Reveal>
-        <div className="flex items-center justify-between border-b border-white/8 bg-white/2 px-4 py-3 backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)]/15 border border-[var(--accent)]/30">
-              <Activity className="h-4 w-4 text-[var(--accent)]" />
-            </div>
-            <div>
-              <h1 className="text-sm font-semibold text-white">
-                {t("chat.title")}
-              </h1>
-              <p className="text-[10px] text-white/40">
-                {sessionActive ? t("chat.sessionActive") : t("chat.sessionIdle")}
-              </p>
-            </div>
-            {sessionActive && (
-              <span className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                {t("chat.live")}
-              </span>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[var(--accent)] pulse-glow" />
+            <span className="text-xs font-semibold text-[var(--accent)] uppercase tracking-widest">QA Agent</span>
+          </div>
+          <h1 className="text-2xl font-bold text-[var(--foreground)] tracking-tight">
+            Talk to your QA Agent
+          </h1>
+          <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">
+            Paste a URL, describe what to test, and the agent will crawl, script, and execute — streaming results live.
+          </p>
+        </div>
+      </Reveal>
+
+      {/* ── URL Bar ── */}
+      <Reveal delay={0.05}>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--card)] border border-[var(--border)] focus-within:border-[var(--accent)]/50 transition-colors">
+            <Globe className="w-4 h-4 text-[var(--muted-foreground)] flex-shrink-0" />
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => { setUrl(e.target.value); setUrlError(""); }}
+              placeholder="https://your-website.com"
+              className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none"
+            />
+            {url && (
+              <button onClick={() => { setUrl(""); setUrlError(""); }} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
+                <X className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
+          {urlError && (
+            <p className="text-xs text-[var(--destructive)] flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {urlError}
+            </p>
+          )}
+        </div>
+      </Reveal>
 
-          <div className="flex items-center gap-2">
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={handleNewSession}
-              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/60 hover:text-white/90 transition-all duration-200"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t("chat.newSession")}
-            </motion.button>
+      {/* ── Chat Window ── */}
+      <Reveal delay={0.1} className="flex-1">
+        <div className="flex flex-col gap-0 bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden" style={{ minHeight: "420px" }}>
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4" style={{ maxHeight: "520px", minHeight: "320px" }}>
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => (
+                <MessageBubble key={msg.id} message={msg} />
+              ))}
+            </AnimatePresence>
+            <div ref={messagesEndRef} />
+          </div>
 
+          {/* Quick Prompts */}
+          <AnimatePresence>
+            {showQuickPrompts && (
+              <motion.div
+                variants={fadeInUp}
+                initial="hidden"
+                animate="visible"
+                exit="hidden"
+                className="px-4 pb-2 flex flex-wrap gap-1.5"
+              >
+                {QUICK_PROMPTS.map((prompt) => (
+                  <button
+                    key={prompt}
+                    onClick={() => handleQuickPrompt(prompt)}
+                    className="px-3 py-1.5 rounded-full text-xs bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 hover:bg-[var(--primary)]/20 transition-all duration-150"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Input Row */}
+          <div className="border-t border-[var(--border)] p-3 flex items-end gap-2">
+            {/* Settings toggle */}
             <div className="relative">
-              <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
+              <button
                 onClick={() => setShowSettings((v) => !v)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-all duration-200",
+                  "p-2 rounded-lg border transition-all duration-150",
                   showSettings
-                    ? "border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--accent)]"
-                    : "border-white/10 bg-white/5 text-white/60 hover:text-white/90"
+                    ? "bg-[var(--primary)]/15 border-[var(--primary)]/30 text-[var(--primary)]"
+                    : "border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-white/5"
                 )}
+                aria-label="Session settings"
               >
-                <Settings className="h-3.5 w-3.5" />
-                {t("chat.settings")}
-              </motion.button>
-
+                <Settings className="w-4 h-4" />
+              </button>
               <AnimatePresence>
                 {showSettings && (
                   <SettingsPanel
@@ -519,155 +508,59 @@ export default function HomeChatInterfacePage() {
                 )}
               </AnimatePresence>
             </div>
-          </div>
-        </div>
-      </Reveal>
 
-      {/* ── Config strip ── */}
-      <Reveal>
-        <div className="flex items-center gap-3 border-b border-white/5 bg-white/1 px-4 py-2">
-          <span className="text-[10px] text-white/30 uppercase tracking-widest font-semibold">
-            {t("chat.configLabel")}
-          </span>
-          <span className="rounded-full border border-[var(--accent)]/25 bg-[var(--accent)]/8 px-2 py-0.5 text-[10px] text-[var(--accent)] font-medium capitalize">
-            {agentMode}
-          </span>
-          <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/50 font-medium capitalize">
-            {framework}
-          </span>
-          {outputs.map((o) => (
-            <span
-              key={o}
-              className="rounded-full border border-white/8 bg-white/3 px-2 py-0.5 text-[10px] text-white/40 font-medium capitalize"
-            >
-              {o}
-            </span>
-          ))}
-        </div>
-      </Reveal>
-
-      {/* ── Messages area ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-5 scroll-smooth">
-        <AnimatePresence initial={false}>
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} msg={msg} />
-          ))}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {isTyping && (
-            <motion.div
-              key="typing"
-              variants={fadeInUp}
-              initial="hidden"
-              animate="visible"
-              exit="hidden"
-              className="flex items-start gap-3"
-            >
-              <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/15 border border-[var(--accent)]/30">
-                <Sparkles className="h-4 w-4 text-[var(--accent)]" />
-              </div>
-              <div className="rounded-2xl rounded-tl-sm border border-white/10 bg-white/5">
-                <TypingIndicator />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* ── Quick prompts (shown when no session active) ── */}
-      <AnimatePresence>
-        {!sessionActive && (
-          <motion.div
-            key="quick-prompts"
-            variants={fadeInUp}
-            initial="hidden"
-            animate="visible"
-            exit="hidden"
-            className="px-4 pb-2"
-          >
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-white/25">
-              {t("chat.quickPrompts")}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {QUICK_PROMPTS.map((prompt) => (
-                <motion.button
-                  key={prompt}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => handleQuickPrompt(prompt)}
-                  className="rounded-full border border-white/10 bg-white/4 px-3 py-1.5 text-xs text-white/55 hover:border-[var(--accent)]/30 hover:text-[var(--accent)] transition-all duration-200"
-                >
-                  {prompt}
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Input area ── */}
-      <Reveal>
-        <div className="border-t border-white/8 bg-white/2 px-4 py-4 backdrop-blur-sm">
-          {/* URL input */}
-          <div className="mb-3 flex items-center gap-2 rounded-xl border border-white/10 bg-white/4 px-3 py-2 focus-within:border-[var(--accent)]/40 transition-all duration-200">
-            <Globe className="h-4 w-4 shrink-0 text-white/30" />
-            <input
-              type="url"
-              value={urlValue}
-              onChange={(e) => setUrlValue(e.target.value)}
-              placeholder={t("chat.urlPlaceholder")}
-              className="flex-1 bg-transparent text-sm text-white/80 placeholder:text-white/25 outline-none"
+            {/* Textarea */}
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Describe what to test, or ask a question..."
+              rows={1}
+              className="flex-1 resize-none bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none leading-relaxed py-1.5 max-h-32 overflow-y-auto"
+              style={{ fieldSizing: "content" } as React.CSSProperties}
+              disabled={isLoading}
             />
-            {urlValue && (
-              <button
-                onClick={() => setUrlValue("")}
-                className="text-white/30 hover:text-white/60 transition-colors"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
 
-          {/* Message input */}
-          <div className="flex items-end gap-3">
-            <div className="flex-1 rounded-xl border border-white/10 bg-white/4 px-3 py-2.5 focus-within:border-[var(--accent)]/40 transition-all duration-200">
-              <textarea
-                ref={inputRef}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={t("chat.messagePlaceholder")}
-                rows={2}
-                className="w-full resize-none bg-transparent text-sm text-white/80 placeholder:text-white/25 outline-none leading-relaxed"
-              />
-            </div>
-
-            <motion.button
-              whileHover={{ scale: 1.06 }}
-              whileTap={{ scale: 0.94 }}
+            {/* Send */}
+            <button
               onClick={handleSend}
-              disabled={isTyping || (!inputValue.trim() && !urlValue.trim())}
+              disabled={isLoading || !input.trim()}
               className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all duration-200",
-                isTyping || (!inputValue.trim() && !urlValue.trim())
-                  ? "bg-white/8 text-white/25 cursor-not-allowed"
-                  : "bg-[var(--accent)] text-black hover:brightness-110 shadow-[0_0_20px_var(--accent)/30]"
+                "p-2.5 rounded-xl transition-all duration-200 flex items-center justify-center",
+                isLoading || !input.trim()
+                  ? "bg-[var(--border)] text-[var(--muted-foreground)] cursor-not-allowed"
+                  : "bg-[var(--primary)] text-white hover:bg-[var(--primary)]/90 glow-primary"
               )}
+              aria-label="Send message"
             >
-              {isTyping ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Send className="h-4 w-4" />
+                <Send className="w-4 h-4" />
               )}
-            </motion.button>
+            </button>
           </div>
+        </div>
+      </Reveal>
 
-          <p className="mt-2 text-center text-[10px] text-white/20">
-            {t("chat.disclaimer")}
-          </p>
+      {/* ── Status Bar ── */}
+      <Reveal delay={0.15}>
+        <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <Activity className="w-3 h-3" />
+              Mode: <span className="text-[var(--foreground)] font-medium">{AGENT_MODES.find((m) => m.value === agentMode)?.label}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <FileCode className="w-3 h-3" />
+              <span className="text-[var(--foreground)] font-medium">{FRAMEWORKS.find((f) => f.value === framework)?.label}</span>
+            </span>
+          </div>
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            {outputs.length} output{outputs.length !== 1 ? "s" : ""} selected
+          </span>
         </div>
       </Reveal>
     </div>
